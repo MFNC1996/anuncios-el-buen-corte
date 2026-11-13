@@ -1,21 +1,30 @@
 #!/bin/bash
-# Genera CarteleraElBuenCorte-Instalador.zip: una copia limpia de la app +
-# un Node.js portable para Windows + INSTALAR.bat (que copia todo a
-# %LOCALAPPDATA%, instala dependencias, crea accesos directos y deja la
-# cartelera arrancando sola con Windows).
+# Genera dos formas del instalador de Windows a partir del mismo contenido:
+#   - CarteleraElBuenCorte-Instalador.zip   (descomprimir y correr INSTALAR.bat)
+#   - CarteleraElBuenCorte-Setup.exe        (un solo .exe autoextraíble que
+#                                             se descomprime e instala solo)
 #
-# No depende de NSIS ni de ninguna herramienta de compilación de Windows —
-# solo usa curl/unzip/rsync/zip, que ya vienen en macOS.
+# El .exe se arma concatenando el módulo SFX oficial de 7-Zip para Windows
+# (un binario PE real, descargado del propio proyecto 7-Zip) + un bloque de
+# configuración + el archivo .7z con todo el contenido. No requiere NSIS ni
+# ninguna herramienta de compilación de Windows.
+#
+# Requisitos en esta máquina (la que genera el instalador, no la que lo usa):
+#   - 7z (p7zip): brew install p7zip
+#   - rsync, curl, unzip, zip (ya vienen en macOS)
 #
 # Uso: ./build-installer.sh
 
 set -e
 
 NODE_VERSION="20.20.2"
+LZMA_SDK_VERSION="2606"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STAGE="$SCRIPT_DIR/stage"
 DIST_NAME="CarteleraElBuenCorte-Instalador"
+
+command -v 7z >/dev/null || { echo "Falta 7z. Instálalo con: brew install p7zip"; exit 1; }
 
 echo "==> Preparando copia limpia de la app..."
 rm -rf "$STAGE/app"
@@ -40,6 +49,17 @@ else
   echo "==> Node.js portable ya está en stage/node-runtime, lo reutilizo."
 fi
 
+if [ ! -f "$STAGE/7zSD.sfx" ]; then
+  echo "==> Descargando el módulo SFX oficial de 7-Zip para Windows..."
+  SDK_ZIP="$SCRIPT_DIR/.lzma-sdk.7z"
+  curl -fL -o "$SDK_ZIP" "https://github.com/ip7z/7zip/releases/download/${LZMA_SDK_VERSION:0:2}.${LZMA_SDK_VERSION:2}/lzma${LZMA_SDK_VERSION}.7z"
+  7z e -y -o"$SCRIPT_DIR/.lzma-sdk-tmp" "$SDK_ZIP" bin/7zSD.sfx >/dev/null
+  mv "$SCRIPT_DIR/.lzma-sdk-tmp/7zSD.sfx" "$STAGE/7zSD.sfx"
+  rm -rf "$SCRIPT_DIR/.lzma-sdk-tmp" "$SDK_ZIP"
+else
+  echo "==> Módulo SFX ya está en stage/7zSD.sfx, lo reutilizo."
+fi
+
 echo "==> Armando el paquete final..."
 rm -rf "$SCRIPT_DIR/dist"
 mkdir -p "$SCRIPT_DIR/dist/$DIST_NAME"
@@ -52,8 +72,22 @@ cp "$SCRIPT_DIR/stop-server.vbs" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/reinstalar-dependencias.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/LEEME.txt" "$SCRIPT_DIR/dist/$DIST_NAME/"
 
-echo "==> Comprimiendo..."
+echo "==> Comprimiendo (.zip)..."
 cd "$SCRIPT_DIR/dist"
 zip -rq "$DIST_NAME.zip" "$DIST_NAME"
 
-echo "==> Listo: $SCRIPT_DIR/dist/$DIST_NAME.zip"
+echo "==> Armando el instalador de un solo clic (.exe)..."
+cat > "$SCRIPT_DIR/dist/.sfx-config.txt" <<'EOF'
+;!@Install@!UTF-8!
+Title="Cartelera El Buen Corte"
+BeginPrompt="Instalar Cartelera El Buen Corte?"
+RunProgram="cmd /c INSTALAR.bat"
+;!@InstallEnd@!
+EOF
+7z a -mx=5 -t7z "$SCRIPT_DIR/dist/.payload.7z" "./$DIST_NAME/"* >/dev/null
+cat "$STAGE/7zSD.sfx" "$SCRIPT_DIR/dist/.sfx-config.txt" "$SCRIPT_DIR/dist/.payload.7z" > "$SCRIPT_DIR/dist/CarteleraElBuenCorte-Setup.exe"
+rm -f "$SCRIPT_DIR/dist/.sfx-config.txt" "$SCRIPT_DIR/dist/.payload.7z"
+
+echo "==> Listo:"
+echo "    $SCRIPT_DIR/dist/$DIST_NAME.zip"
+echo "    $SCRIPT_DIR/dist/CarteleraElBuenCorte-Setup.exe"

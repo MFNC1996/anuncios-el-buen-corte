@@ -7,11 +7,14 @@ red wifi, sin tocar imágenes.
 
 ### Opción fácil en Windows (no necesita instalar Node ni nada a mano)
 
-Descarga `CarteleraElBuenCorte-Instalador.zip` (ver [`windows-installer/`](windows-installer/)),
-descomprímelo y haz doble clic en `INSTALAR.bat`. Trae su propio Node.js, instala las dependencias,
-crea accesos directos y deja el servidor arrancando solo con Windows. Ver
-[`windows-installer/LEEME.txt`](windows-installer/LEEME.txt) para más detalle. Para generar el `.zip`
-desde el código fuente: `cd windows-installer && ./build-installer.sh`.
+Doble clic en `CarteleraElBuenCorte-Setup.exe` (ver [`windows-installer/`](windows-installer/)) y listo —
+se autoextrae e instala solo, sin pasos intermedios. Trae su propio Node.js, instala las dependencias,
+crea accesos directos y deja el servidor arrancando solo con Windows. Si prefieres revisar los archivos
+antes de instalar, también queda generado `CarteleraElBuenCorte-Instalador.zip` (descomprimir y correr
+`INSTALAR.bat` a mano). Ver [`windows-installer/LEEME.txt`](windows-installer/LEEME.txt) para más
+detalle. Para generar ambos desde el código fuente: `cd windows-installer && ./build-installer.sh`
+(el `.exe` se arma concatenando el módulo SFX oficial de 7-Zip para Windows con el contenido empaquetado,
+sin necesitar NSIS ni ninguna herramienta de compilación).
 
 ### Instalación manual (Mac/Linux/Windows con Node ya instalado)
 
