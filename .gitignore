@@ -9,4 +9,7 @@ tizen-app/.build/
 tizen-app/.manifest.tmp
 tizen-app/*signature*.xml
 *.wgt
+windows-installer/stage/
+windows-installer/dist/
+windows-installer/.node-win-x64.zip
 

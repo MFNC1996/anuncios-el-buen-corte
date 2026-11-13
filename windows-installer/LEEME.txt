@@ -1,0 +1,39 @@
+CARTELERA EL BUEN CORTE — Instalador para Windows
+===================================================
+
+CÓMO INSTALAR
+--------------
+1. Asegúrate de que este PC tenga internet la primera vez (solo se usa una
+   vez, para bajar una pieza necesaria de la base de datos).
+2. Haz doble clic en INSTALAR.bat
+3. Espera a que termine (puede tardar uno o dos minutos).
+4. Listo. Vas a ver un ícono "Panel de Cartelera" en el Escritorio.
+
+La cartelera va a quedar funcionando en:
+  http://localhost:4010/admin   (panel para cambiar precios y fotos)
+  http://localhost:4010/player/1   (pantalla para mostrar en la TV)
+
+Se instala en tu carpeta de usuario, no necesita que seas Administrador del
+PC. Y queda configurada para arrancar sola cada vez que se prende el PC —
+no hay que abrir nada a mano todos los días.
+
+CÓMO DESINSTALAR
+------------------
+Abre el menú Inicio → carpeta "Cartelera El Buen Corte" → "Desinstalar".
+(O ejecuta DESINSTALAR.bat dentro de la carpeta donde quedó instalada,
+normalmente en %LOCALAPPDATA%\CarteleraElBuenCorte).
+
+OJO: desinstalar borra también las fotos y los precios guardados. Si quieres
+guardar una copia antes, copia la carpeta "server\data" y "server\uploads"
+de adentro de la instalación.
+
+SI ALGO FALLA
+---------------
+- Si al instalar dice que no pudo instalar las dependencias: revisa que el
+  PC tenga internet y ejecuta "reinstalar-dependencias.bat" dentro de la
+  carpeta de instalación.
+- Para ver qué está pasando o revisar errores, puedes abrir una ventana de
+  símbolo del sistema (cmd) y ejecutar a mano:
+    cd %LOCALAPPDATA%\CarteleraElBuenCorte
+    node-runtime\node.exe server\index.js
+  así ves los mensajes del servidor directamente en pantalla.

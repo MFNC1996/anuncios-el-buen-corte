@@ -5,6 +5,16 @@ red wifi, sin tocar imágenes.
 
 ## 1. Instalar y correr el servidor
 
+### Opción fácil en Windows (no necesita instalar Node ni nada a mano)
+
+Descarga `CarteleraElBuenCorte-Instalador.zip` (ver [`windows-installer/`](windows-installer/)),
+descomprímelo y haz doble clic en `INSTALAR.bat`. Trae su propio Node.js, instala las dependencias,
+crea accesos directos y deja el servidor arrancando solo con Windows. Ver
+[`windows-installer/LEEME.txt`](windows-installer/LEEME.txt) para más detalle. Para generar el `.zip`
+desde el código fuente: `cd windows-installer && ./build-installer.sh`.
+
+### Instalación manual (Mac/Linux/Windows con Node ya instalado)
+
 Necesitas tener [Node.js](https://nodejs.org) instalado (versión 18 o superior) en el PC/mini PC que va a
 actuar como servidor (puede ser el mismo mini PC conectado a la TV, u otro PC en la misma red).
 
