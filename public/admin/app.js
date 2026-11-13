@@ -514,6 +514,40 @@
     localStorage.setItem('previewCollapsed', collapsed ? '1' : '0');
   });
 
+  // ---------------- QR de acceso desde el celular ----------------
+  const qrWidget = document.getElementById('qr-widget');
+  const qrToggle = document.getElementById('qr-toggle');
+  const qrWidgetImg = document.getElementById('qr-widget-img');
+  const qrWidgetUrl = document.getElementById('qr-widget-url');
+
+  const storedQrState = localStorage.getItem('qrWidgetCollapsed');
+  const qrStartCollapsed = storedQrState ? storedQrState === '1' : window.innerWidth < 720;
+  if (qrStartCollapsed) {
+    qrWidget.classList.add('is-collapsed');
+    qrToggle.textContent = '▢';
+    qrToggle.title = 'Expandir';
+  }
+
+  qrToggle.addEventListener('click', () => {
+    const collapsed = qrWidget.classList.toggle('is-collapsed');
+    qrToggle.textContent = collapsed ? '▢' : '—';
+    qrToggle.title = collapsed ? 'Expandir' : 'Minimizar';
+    localStorage.setItem('qrWidgetCollapsed', collapsed ? '1' : '0');
+  });
+
+  api('GET', '/api/server-info')
+    .then((info) => {
+      if (info.qrDataUrl) {
+        qrWidgetImg.src = info.qrDataUrl;
+        qrWidgetUrl.textContent = info.adminUrl;
+      } else {
+        qrWidgetUrl.textContent = 'No se detectó la IP de este PC en la red.';
+      }
+    })
+    .catch(() => {
+      qrWidgetUrl.textContent = 'No se pudo generar el QR.';
+    });
+
   // ---------------- Instalar en TV Samsung (Tizen) ----------------
   const tizenReadinessBody = document.getElementById('tizen-readiness-body');
   const tizenTvIpInput = document.getElementById('tizen-tv-ip');

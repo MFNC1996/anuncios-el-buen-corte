@@ -207,6 +207,20 @@ X-GNOME-Autostart-enabled=true</pre>
     </div>
   </div>
 
+  <div id="qr-widget" class="preview-widget qr-widget">
+    <div class="preview-widget__header">
+      <span>📱 Acceso desde el celular</span>
+      <div class="preview-widget__actions">
+        <button id="qr-toggle" type="button" title="Minimizar">—</button>
+      </div>
+    </div>
+    <div class="preview-widget__body">
+      <p class="qr-widget__hint">Escanea con la cámara del celular (debe estar en la misma wifi):</p>
+      <img id="qr-widget-img" class="qr-widget__image" alt="QR del panel" />
+      <p id="qr-widget-url" class="qr-widget__url"></p>
+    </div>
+  </div>
+
   <script src="/shared/util.js"></script>
   <script src="app.js"></script>
 </body>

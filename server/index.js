@@ -12,6 +12,7 @@ const playlistsRouter = require('./routes/playlists');
 const screensRouter = require('./routes/screens');
 const settingsRouter = require('./routes/settings');
 const tizenRouter = require('./routes/tizen');
+const serverInfoRouter = require('./routes/server-info');
 
 const app = express();
 const PORT = process.env.PORT || 4010;
@@ -25,6 +26,7 @@ app.use('/api/playlists', playlistsRouter);
 app.use('/api/screens', screensRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/tizen', tizenRouter);
+app.use('/api/server-info', serverInfoRouter);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/shared', express.static(path.join(__dirname, '..', 'public', 'shared')));

@@ -527,6 +527,45 @@ main {
   }
 }
 
+/* ---- QR de acceso desde el celular ---- */
+.qr-widget {
+  right: auto;
+  left: 1.25rem;
+  background: var(--ebc-surface);
+  color: var(--ebc-ink);
+}
+.qr-widget .preview-widget__header {
+  background: var(--ebc-red);
+  color: var(--ebc-surface);
+  border-bottom: 3px solid var(--ebc-green);
+}
+.qr-widget__hint {
+  margin: 0 0 0.6rem;
+  font-size: 0.82rem;
+  color: var(--ebc-ink-soft);
+}
+.qr-widget__image {
+  display: block;
+  width: 160px;
+  height: 160px;
+  margin: 0 auto;
+  border: 1px solid var(--ebc-border);
+  border-radius: 8px;
+}
+.qr-widget__url {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  text-align: center;
+  color: var(--ebc-ink-soft);
+  word-break: break-all;
+}
+
+@media (max-width: 720px) {
+  .qr-widget {
+    left: 0.75rem;
+  }
+}
+
 /* ---- Pestaña TV: métodos de conexión ---- */
 .tv-method {
   background: var(--ebc-surface);

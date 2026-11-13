@@ -3,6 +3,7 @@ const os = require('os');
 const { spawn, execFile } = require('child_process');
 const express = require('express');
 const { broadcast } = require('../ws');
+const { detectServerIp } = require('../network-info');
 
 const router = express.Router();
 const TIZEN_APP_DIR = path.join(__dirname, '..', '..', 'tizen-app');
@@ -17,16 +18,6 @@ function commandExists(cmd, env) {
   return new Promise((resolve) => {
     execFile(cmd, ['version'], { env, timeout: 10000 }, (err) => resolve(!err));
   });
-}
-
-function detectServerIp() {
-  const nets = os.networkInterfaces();
-  for (const ifaceList of Object.values(nets)) {
-    for (const net of ifaceList) {
-      if (net.family === 'IPv4' && !net.internal) return net.address;
-    }
-  }
-  return null;
 }
 
 let activeJob = null;
