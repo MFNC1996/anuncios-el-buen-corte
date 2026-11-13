@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260">
+  <rect width="400" height="260" fill="#eceef2" />
+  <g transform="translate(200,130)" opacity="0.6">
+    <g stroke="#145c33" stroke-width="10" stroke-linecap="round">
+      <line x1="-70" y1="-50" x2="40" y2="50" />
+      <line x1="70" y1="-50" x2="-40" y2="50" />
+    </g>
+    <g fill="#9a9aa6">
+      <path d="M -70 -50 l 34 -34 a 10 10 0 0 1 14 14 l -34 34 z" />
+      <path d="M 70 -50 l -34 -34 a 10 10 0 0 0 -14 14 l 34 34 z" />
+    </g>
+    <g fill="#6b4a2f">
+      <rect x="28" y="38" width="30" height="12" rx="4" transform="rotate(45 43 44)" />
+      <rect x="-58" y="38" width="30" height="12" rx="4" transform="rotate(-45 -43 44)" />
+    </g>
+  </g>
+  <text x="200" y="210" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#5a5a66">
+    Foto próximamente
+  </text>
+</svg>

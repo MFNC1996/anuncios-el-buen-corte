@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Cartelera El Buen Corte</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; }
+  </style>
+</head>
+<body>
+  <script>
+    // IMPORTANTE: cambia esta IP si el servidor de la cartelera corre en otra
+    // máquina o tu red local cambia de rango.
+    var PLAYER_URL = 'http://192.168.1.50:4010/player/1';
+
+    // El botón "volver" del control remoto debe cerrar la app en TVs Samsung,
+    // si no Tizen puede rechazar/colgar la app.
+    document.addEventListener('tizenhwkey', function (e) {
+      if (e.keyName === 'back') {
+        try {
+          tizen.application.getCurrentApplication().exit();
+        } catch (err) {
+          /* ignorar si la API no está disponible (ej. probando en navegador normal) */
+        }
+      }
+    });
+
+    try {
+      tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+    } catch (err) {
+      /* API de energía no disponible fuera de una TV Tizen real */
+    }
+
+    location.replace(PLAYER_URL);
+  </script>
+</body>
+</html>

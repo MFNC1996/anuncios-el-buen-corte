@@ -1,0 +1,52 @@
+{
+  "categories": [
+    {
+      "name": "Vacuno",
+      "items": [
+        { "name": "Asado de tira", "price": 6990, "unit": "kg" },
+        { "name": "Lomo liso", "price": 9990, "unit": "kg" },
+        { "name": "Lomo vetado", "price": 10990, "unit": "kg" },
+        { "name": "Posta rosada", "price": 7990, "unit": "kg" },
+        { "name": "Malaya", "price": 6490, "unit": "kg" },
+        { "name": "Plateada", "price": 6990, "unit": "kg" }
+      ]
+    },
+    {
+      "name": "Cerdo",
+      "items": [
+        { "name": "Costillar de cerdo", "price": 4990, "unit": "kg" },
+        { "name": "Pulpa de cerdo", "price": 5990, "unit": "kg" },
+        { "name": "Chuleta de cerdo", "price": 5490, "unit": "kg" },
+        { "name": "Panceta", "price": 4490, "unit": "kg" }
+      ]
+    },
+    {
+      "name": "Pollo",
+      "items": [
+        { "name": "Pechuga de pollo", "price": 4290, "unit": "kg" },
+        { "name": "Trutro entero", "price": 3290, "unit": "kg" },
+        { "name": "Alitas de pollo", "price": 2990, "unit": "kg" },
+        { "name": "Pollo entero", "price": 2690, "unit": "kg" }
+      ]
+    },
+    {
+      "name": "Embutidos y Cecinas",
+      "items": [
+        { "name": "Longaniza", "price": 4990, "unit": "kg" },
+        { "name": "Chorizo parrillero", "price": 5490, "unit": "kg" },
+        { "name": "Vienesas", "price": 3990, "unit": "kg" },
+        { "name": "Jamón", "price": 6990, "unit": "kg" }
+      ]
+    },
+    {
+      "name": "Ofertas del Día",
+      "items": []
+    },
+    {
+      "name": "Parrilleros",
+      "items": [
+        { "name": "Combo parrillero familiar", "price": 24990, "unit": "combo" }
+      ]
+    }
+  ]
+}

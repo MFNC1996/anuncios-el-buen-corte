@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel de Cartelera — El Buen Corte</title>
+  <link rel="stylesheet" href="/shared/brand.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="admin-header">
+    <img src="/shared/brand/logo.png" alt="El Buen Corte" class="admin-logo" />
+    <div>
+      <h1>Panel de Cartelera</h1>
+      <p>Carnicería El Buen Corte — Loncoche</p>
+    </div>
+    <a class="btn btn-outline" href="/player/1" target="_blank" rel="noopener">Ver pantalla en vivo ↗</a>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn is-active" data-tab="productos">Productos</button>
+    <button class="tab-btn" data-tab="playlist">Orden en pantalla</button>
+    <button class="tab-btn" data-tab="local">Datos del local</button>
+    <button class="tab-btn" data-tab="tv">TV</button>
+  </nav>
+
+  <main>
+    <section id="view-productos" class="view">
+      <div id="categories-list" class="categories-list"></div>
+      <form id="form-add-category" class="add-category-form">
+        <input type="text" id="new-category-name" placeholder="Nombre de la nueva categoría (ej: Cordero)" required />
+        <button type="submit" class="btn btn-primary">+ Agregar categoría</button>
+      </form>
+    </section>
+
+    <section id="view-playlist" class="view" hidden>
+      <p class="hint">Este es el orden en que los carteles van pasando en la TV. Cada tarjeta es una pantalla
+        (slide): elige qué categoría muestra, con qué plantilla, qué animación y cuántos segundos dura.</p>
+      <div id="slides-list" class="slides-list"></div>
+      <button id="add-slide" type="button" class="btn btn-primary">+ Agregar cartel</button>
+    </section>
+
+    <section id="view-local" class="view" hidden>
+      <p class="hint">Estos datos se usan en los carteles de "Síguenos en nuestras redes", "Horario de
+        atención" y el QR del grupo de WhatsApp. Agrégalos como cartel en la pestaña "Orden en pantalla".</p>
+
+      <div class="category-card">
+        <div class="category-card__header"><strong>Redes sociales y WhatsApp</strong></div>
+        <div class="local-form">
+          <label>Instagram (@usuario)
+            <input type="text" id="local-instagram" placeholder="@elbuencorteloncoche" />
+          </label>
+          <label>Facebook (nombre de la página)
+            <input type="text" id="local-facebook" placeholder="Carnicería El Buen Corte" />
+          </label>
+          <label>WhatsApp a mostrar (número o texto)
+            <input type="text" id="local-whatsapp-display" placeholder="+56 9 1234 5678" />
+          </label>
+          <label>Link del grupo de WhatsApp (para el QR)
+            <input type="text" id="local-whatsapp-url" placeholder="https://chat.whatsapp.com/..." />
+          </label>
+        </div>
+      </div>
+
+      <div class="category-card">
+        <div class="category-card__header"><strong>Horario de atención</strong></div>
+        <div id="hours-editor" class="hours-editor"></div>
+      </div>
+
+      <div class="category-card">
+        <div class="category-card__header"><strong>Imagen de fondo de la cartelera</strong></div>
+        <div class="background-form">
+          <div id="background-preview" class="background-preview">Sin imagen</div>
+          <div class="background-controls">
+            <input type="file" id="background-file" accept="image/png,image/jpeg,image/webp" hidden />
+            <button id="background-upload-btn" type="button" class="btn btn-primary">Subir imagen</button>
+            <button id="background-remove-btn" type="button" class="btn-icon danger" hidden>Quitar imagen</button>
+            <label class="background-opacity-label">
+              Transparencia del fondo
+              <input type="range" id="background-opacity" min="0" max="100" value="80" />
+              <span id="background-opacity-value">80%</span>
+            </label>
+            <p class="hint" style="margin:0.5rem 0 0">0% = se ve toda la imagen (puede costar leer los
+              precios). 100% = fondo sólido, como si no hubiera imagen.</p>
+          </div>
+        </div>
+      </div>
+
+      <button id="save-local" type="button" class="btn btn-primary">Guardar datos del local</button>
+    </section>
+
+    <section id="view-tv" class="view" hidden>
+      <p class="hint">Así puede la TV mostrar la cartelera. Elige la que corresponda a tu equipo — cada una
+        es independiente de las otras.</p>
+
+      <details class="tv-method" open>
+        <summary>
+          <span class="tv-method__title">📶 Android TV / Google TV / Fire TV Stick</span>
+          <span class="tag-recommended">Recomendado</span>
+        </summary>
+        <div class="tv-method__body">
+          <p>Sin cables ni PC extra: la propia TV se conecta sola por wifi.</p>
+          <ol>
+            <li>Instala la app <strong>Fully Kiosk Browser</strong> (gratis).
+              <ul>
+                <li><strong>Android TV / Google TV</strong>: búscala directo en su Play Store.</li>
+                <li><strong>Fire TV Stick</strong>: no está en la tienda de Amazon, se instala por ADB
+                  (activa "Opciones de desarrollador" presionando 7 veces el nombre del equipo en
+                  <em>Ajustes → My Fire TV → About</em>, luego <code>adb connect &lt;ip-del-Fire-TV&gt;:5555</code>
+                  y <code>adb install FullyKioskBrowser.apk</code> desde un PC en la misma wifi).</li>
+              </ul>
+            </li>
+            <li>Dentro de la app, en sus ajustes:
+              <ul>
+                <li><strong>Start URL</strong>: <code id="tv-player-url-1">http://&lt;IP-del-servidor&gt;:4010/player/1</code></li>
+                <li><strong>Launch on Boot</strong>: Sí (antes activa el permiso "Modify system settings"
+                  para Fully Kiosk Browser en los ajustes de la TV)</li>
+                <li><strong>Keep Screen On</strong>: activado</li>
+                <li><strong>Fullscreen Mode</strong>: activado — oculta la barra de acción y de dirección</li>
+              </ul>
+            </li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="tv-method">
+        <summary>
+          <span class="tv-method__title">🖥️ Mini PC / Raspberry Pi por HDMI</span>
+        </summary>
+        <div class="tv-method__body">
+          <p>Conecta el mini PC/Raspberry Pi a la TV por HDMI, instala Chromium/Chrome y déjalo en modo
+            kiosko apuntando a <code>http://&lt;IP-del-servidor&gt;:4010/player/1</code>.</p>
+          <p><strong>Raspberry Pi OS</strong> — crear <code>~/.config/autostart/cartelera.desktop</code>:</p>
+          <pre class="code-block">[Desktop Entry]
+Type=Application
+Name=Cartelera
+Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito http://&lt;IP-del-servidor&gt;:4010/player/1
+X-GNOME-Autostart-enabled=true</pre>
+          <p><strong>Windows (mini PC)</strong> — acceso directo en la carpeta de inicio (<code>shell:startup</code>):</p>
+          <pre class="code-block">chrome.exe --kiosk --noerrdialogs --disable-infobars http://&lt;IP-del-servidor&gt;:4010/player/1</pre>
+        </div>
+      </details>
+
+      <details class="tv-method">
+        <summary>
+          <span class="tv-method__title">📡 TV Samsung (Tizen) — instalación automática</span>
+        </summary>
+        <div class="tv-method__body">
+          <p>Lo único que se toca en el control remoto de la TV: activar el Modo Desarrollador y anotar su
+            IP. Todo lo demás (empaquetar la app, conectarse, instalarla) lo hace el botón de abajo.</p>
+          <ol>
+            <li>En el control: <strong>Apps</strong> → ícono de engranaje o botón <strong>123</strong> →
+              escribe <strong>12345</strong>.</li>
+            <li>Activa <strong>Developer mode</strong> e ingresa la IP de este PC.</li>
+            <li>Acepta y reinicia la TV cuando lo pida.</li>
+            <li>Anota la IP de la TV: <strong>Configuración → General → Red → Estado de la red</strong>.</li>
+          </ol>
+          <p class="hint">Esto (el botón de instalar) solo funciona si <strong>este servidor</strong> está
+            corriendo en un PC conectado a la <strong>misma wifi que la TV</strong>, con el SDK de Tizen
+            instalado. Si no es el caso, usa la guía manual en <code>tizen-app/README.md</code> desde el PC
+            correcto.</p>
+
+          <div id="tizen-readiness" class="category-card">
+            <div class="category-card__header"><strong>Estado de este servidor</strong></div>
+            <div id="tizen-readiness-body" class="local-form" style="grid-template-columns: 1fr;">
+              <p>Comprobando...</p>
+            </div>
+          </div>
+
+          <div class="category-card">
+            <div class="category-card__header"><strong>Datos de la instalación</strong></div>
+            <div class="local-form">
+              <label>IP de la TV
+                <input type="text" id="tizen-tv-ip" placeholder="192.168.1.42" />
+              </label>
+              <label>IP de este servidor (se detecta sola)
+                <input type="text" id="tizen-server-ip" placeholder="192.168.1.50" />
+              </label>
+            </div>
+          </div>
+
+          <button id="tizen-deploy" type="button" class="btn btn-primary">Instalar en la TV</button>
+
+          <div class="category-card" style="margin-top: 1rem;">
+            <div class="category-card__header"><strong>Progreso</strong></div>
+            <pre id="tizen-log" class="tizen-log">Esperando...</pre>
+          </div>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <div id="preview-widget" class="preview-widget">
+    <div class="preview-widget__header">
+      <span>📺 Vista previa en vivo</span>
+      <div class="preview-widget__actions">
+        <a href="/player/1" target="_blank" rel="noopener" title="Abrir a pantalla completa">⤢</a>
+        <button id="preview-toggle" type="button" title="Minimizar">—</button>
+      </div>
+    </div>
+    <div class="preview-widget__body">
+      <div class="tv-frame">
+        <iframe class="tv-screen" src="/player/1" title="Vista previa de la pantalla"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script src="/shared/util.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

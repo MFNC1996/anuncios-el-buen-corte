@@ -1,0 +1,383 @@
+.board {
+  width: 100%;
+  height: 100%;
+  font-family: var(--ebc-font);
+  color: var(--ebc-ink);
+  display: flex;
+  flex-direction: column;
+  /* Capa de "papel" semitransparente sobre la imagen de fondo configurada en
+     #stage (ver --ebc-bg-image/--ebc-bg-overlay-alpha, seteadas por player.js).
+     Sin imagen de fondo, --ebc-bg-overlay-alpha vale 1 y se ve igual que antes. */
+  background: rgba(244, 244, 247, var(--ebc-bg-overlay-alpha, 1));
+}
+
+/* Encabezado fijo (fuera del área animada, ver #stage-header en player/index.html):
+   igual que la barra superior del POS, rojo legible con el aro verde del logo
+   como filete abajo. Al vivir fuera de .slide-area, nunca se anima junto con
+   el contenido, así el logo no se superpone con el del cartel siguiente durante
+   una transición. */
+.board-header {
+  background: var(--ebc-red);
+  color: var(--ebc-surface);
+  display: flex;
+  align-items: center;
+  gap: 1.4vw;
+  padding: 2.2vh 4vw;
+  flex: 0 0 auto;
+  border-bottom: 0.5vh solid var(--ebc-green);
+}
+
+.board-header .logo-mini {
+  height: 7.5vh;
+  width: 7.5vh;
+  border-radius: 50%;
+  background: var(--ebc-surface);
+  box-shadow: 0 0.3vh 1vh rgba(0, 0, 0, 0.25);
+  flex: 0 0 auto;
+  object-fit: contain;
+  padding: 0.3vh;
+  animation: ebc-logo-spin 12s linear infinite;
+}
+
+/* Giro parejo y continuo, como una medalla — a diferencia del "giro" accidental
+   de antes, este vive en el logo fijo, nunca en un elemento que se anima/recorta
+   junto con el contenido, así que no hay superposición ni parpadeo. */
+@keyframes ebc-logo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-header .logo-mini,
+  .portada-logo {
+    animation: none;
+  }
+}
+
+.board-header h2 {
+  font-size: 4.2vh;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.8vh;
+  color: var(--ebc-ink-soft);
+  text-align: center;
+  padding: 4vw;
+}
+
+/* ---------- Grid: tarjetas como las del POS (.tarjeta) ---------- */
+.board--grid .items-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2.2vh 2vw;
+  padding: 3vh 4vw;
+  align-content: start;
+}
+.item-card {
+  background: var(--ebc-surface);
+  border: 0.12vh solid var(--ebc-border);
+  border-radius: 1vh;
+  box-shadow: 0 0.15vh 0.3vh rgba(0, 0, 0, 0.07), 0 0.6vh 1.6vh rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.item-card .item-photo {
+  width: 100%;
+  height: 17vh;
+  object-fit: cover;
+  background: var(--ebc-paper);
+}
+.item-card .item-body {
+  padding: 1.5vh 1.6vw;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+}
+.item-card .item-name {
+  font-weight: 600;
+  font-size: 2.5vh;
+  line-height: 1.2;
+  color: var(--ebc-ink);
+}
+.item-card .item-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6vw;
+}
+.item-card .item-price {
+  font-variant-numeric: tabular-nums;
+  font-size: 3.1vh;
+  font-weight: 800;
+  color: var(--ebc-red-vivid);
+}
+.item-card .item-unit {
+  font-size: 1.7vh;
+  color: var(--ebc-ink-soft);
+  font-weight: 500;
+}
+
+/* ---------- Lista: como una tabla del panel, filas limpias ---------- */
+.board--lista .items-list {
+  flex: 1;
+  padding: 1.5vh 5vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.list-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1vw;
+  padding: 1.3vh 1vw;
+  border-bottom: 0.1vh solid var(--ebc-border);
+}
+.list-row:nth-child(odd) {
+  background: #fafafc;
+}
+.list-row .list-name {
+  font-size: 2.8vh;
+  font-weight: 600;
+  color: var(--ebc-ink);
+  white-space: nowrap;
+}
+.list-row .list-dots {
+  flex: 1;
+  border-bottom: 0.25vh dotted var(--ebc-border);
+  margin-bottom: 0.6vh;
+}
+.list-row .list-price {
+  font-variant-numeric: tabular-nums;
+  font-size: 3.1vh;
+  font-weight: 800;
+  color: var(--ebc-red-vivid);
+  white-space: nowrap;
+}
+.list-row .list-unit {
+  font-size: 1.8vh;
+  color: var(--ebc-ink-soft);
+}
+
+/* ---------- Destacado: foto grande + etiqueta tipo pill, como .etiqueta ---------- */
+.board--destacado {
+  position: relative;
+  background: var(--ebc-ink);
+}
+.board--destacado .hero-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.9;
+}
+.board--destacado .hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(27, 27, 31, 0.88), rgba(27, 27, 31, 0.1) 48%, rgba(27, 27, 31, 0.3));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 5vh 5vw;
+  color: var(--ebc-surface);
+}
+.board--destacado .hero-eyebrow {
+  font-size: 2vh;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 1.2vh;
+  font-weight: 600;
+}
+.board--destacado .hero-name {
+  font-size: 5.6vh;
+  font-weight: 700;
+  margin: 0 0 1.6vh;
+}
+.board--destacado .hero-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1vw;
+}
+.board--destacado .hero-price {
+  font-variant-numeric: tabular-nums;
+  font-size: 7.5vh;
+  font-weight: 800;
+  color: var(--ebc-gold);
+}
+.board--destacado .hero-unit {
+  font-size: 2.2vh;
+  color: rgba(255, 255, 255, 0.8);
+}
+.badge-oferta {
+  position: absolute;
+  top: 4vh;
+  left: 4vw;
+  background: var(--ebc-gold);
+  color: #4a3800;
+  padding: 0.9vh 2.2vw;
+  border-radius: 999px;
+  font-size: 2vh;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: var(--ebc-shadow-lg);
+}
+
+/* ---------- Redes sociales ---------- */
+.board--redes .redes-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4vh;
+}
+.board--redes .redes-logo {
+  width: 18vh;
+  height: 18vh;
+  object-fit: contain;
+}
+.social-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+}
+.social-row {
+  display: flex;
+  align-items: center;
+  gap: 1.4vw;
+  background: var(--ebc-surface);
+  border: 0.12vh solid var(--ebc-border);
+  border-radius: 999px;
+  padding: 1.2vh 2.4vw 1.2vh 1.2vh;
+  box-shadow: var(--ebc-shadow);
+}
+.social-badge {
+  width: 5.5vh;
+  height: 5.5vh;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 2vh;
+  color: var(--ebc-surface);
+  flex: 0 0 auto;
+}
+.social-instagram .social-badge {
+  background: linear-gradient(135deg, #a5123a, #d81e1e, var(--ebc-gold));
+}
+.social-facebook .social-badge {
+  background: #24507a;
+}
+.social-label {
+  font-size: 2.6vh;
+  font-weight: 700;
+  color: var(--ebc-ink);
+}
+
+/* ---------- Horario de atención ---------- */
+.board--horario .hours-list {
+  flex: 1;
+  padding: 2vh 6vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hours-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 1.4vh 1vw;
+  border-bottom: 0.1vh solid var(--ebc-border);
+}
+.hours-row:nth-child(odd) {
+  background: #fafafc;
+}
+.hours-day {
+  font-size: 2.8vh;
+  font-weight: 600;
+  color: var(--ebc-ink);
+}
+.hours-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 2.8vh;
+  font-weight: 700;
+  color: var(--ebc-green);
+}
+.hours-closed {
+  font-size: 2.4vh;
+  font-weight: 700;
+  color: var(--ebc-red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- QR de WhatsApp ---------- */
+.board--qr .qr-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+  padding: 2vh 6vw;
+  text-align: center;
+}
+.qr-image {
+  width: 32vh;
+  height: 32vh;
+  background: var(--ebc-surface);
+  border: 0.12vh solid var(--ebc-border);
+  border-radius: var(--ebc-radius-lg);
+  box-shadow: var(--ebc-shadow-lg);
+  padding: 1.5vh;
+}
+.qr-caption {
+  margin: 0;
+  font-size: 2.3vh;
+  color: var(--ebc-ink-soft);
+  max-width: 60vw;
+}
+
+/* ---------- Portada: igual a la pantalla de espera del POS (.marca-local) ---------- */
+.board--portada {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.portada-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.portada-logo {
+  width: 26vh;
+  height: 26vh;
+  object-fit: contain;
+  margin-bottom: 2.5vh;
+  animation: ebc-logo-spin 12s linear infinite;
+}
+.portada-title {
+  margin: 0;
+  font-size: 5.2vh;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ebc-red);
+}
+.portada-sub {
+  margin: 1vh 0 0;
+  font-size: 2.2vh;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ebc-ink-soft);
+}
