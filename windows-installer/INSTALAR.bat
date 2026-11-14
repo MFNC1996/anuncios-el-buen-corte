@@ -36,6 +36,7 @@ copy /y "%SRC%\start-hidden.vbs" "%INSTALL_DIR%\start-hidden.vbs" >nul
 copy /y "%SRC%\stop-server.vbs" "%INSTALL_DIR%\stop-server.vbs" >nul
 copy /y "%SRC%\reinstalar-dependencias.bat" "%INSTALL_DIR%\reinstalar-dependencias.bat" >nul
 copy /y "%SRC%\DESINSTALAR.bat" "%INSTALL_DIR%\DESINSTALAR.bat" >nul
+copy /y "%SRC%\app.ico" "%INSTALL_DIR%\app.ico" >nul
 
 echo [2/5] Instalando dependencias (necesita internet la primera vez)...
 pushd "%INSTALL_DIR%"
@@ -55,12 +56,11 @@ echo [3/5] Creando accesos directos...
 if not exist "%STARTMENU%" mkdir "%STARTMENU%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ws = New-Object -ComObject WScript.Shell;" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Iniciar Cartelera.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Detener Cartelera.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\stop-server.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Panel de Cartelera (Admin).lnk'); $s.TargetPath = '%WINDIR%\explorer.exe'; $s.Arguments = 'http://localhost:4010/admin'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Desinstalar.lnk'); $s.TargetPath = '%INSTALL_DIR%\DESINSTALAR.bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%USERPROFILE%\Desktop\Panel de Cartelera.lnk'); $s.TargetPath = '%WINDIR%\explorer.exe'; $s.Arguments = 'http://localhost:4010/admin'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTUP%\%APP_NAME%.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.Save();"
+  "$s = $ws.CreateShortcut('%STARTMENU%\Cartelera El Buen Corte.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
+  "$s = $ws.CreateShortcut('%STARTMENU%\Detener Cartelera.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\stop-server.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
+  "$s = $ws.CreateShortcut('%STARTMENU%\Desinstalar.lnk'); $s.TargetPath = '%INSTALL_DIR%\DESINSTALAR.bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
+  "$s = $ws.CreateShortcut('%USERPROFILE%\Desktop\Cartelera El Buen Corte.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
+  "$s = $ws.CreateShortcut('%STARTUP%\%APP_NAME%.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();"
 
 echo [4/5] Dejando registrado el programa...
 reg add "HKCU\Software\CarteleraElBuenCorte" /v InstallDir /t REG_SZ /d "%INSTALL_DIR%" /f >nul

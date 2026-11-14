@@ -49,16 +49,26 @@ else
   echo "==> Node.js portable ya está en stage/node-runtime, lo reutilizo."
 fi
 
-if [ ! -f "$STAGE/7zSD.sfx" ]; then
+if [ ! -f "$STAGE/7zSD-original.sfx" ]; then
   echo "==> Descargando el módulo SFX oficial de 7-Zip para Windows..."
   SDK_ZIP="$SCRIPT_DIR/.lzma-sdk.7z"
   curl -fL -o "$SDK_ZIP" "https://github.com/ip7z/7zip/releases/download/${LZMA_SDK_VERSION:0:2}.${LZMA_SDK_VERSION:2}/lzma${LZMA_SDK_VERSION}.7z"
   7z e -y -o"$SCRIPT_DIR/.lzma-sdk-tmp" "$SDK_ZIP" bin/7zSD.sfx >/dev/null
-  mv "$SCRIPT_DIR/.lzma-sdk-tmp/7zSD.sfx" "$STAGE/7zSD.sfx"
+  mv "$SCRIPT_DIR/.lzma-sdk-tmp/7zSD.sfx" "$STAGE/7zSD-original.sfx"
   rm -rf "$SCRIPT_DIR/.lzma-sdk-tmp" "$SDK_ZIP"
 else
-  echo "==> Módulo SFX ya está en stage/7zSD.sfx, lo reutilizo."
+  echo "==> Módulo SFX original ya está en stage/7zSD-original.sfx, lo reutilizo."
 fi
+
+echo "==> Generando ícono propio (a partir del logo) y poniéndoselo al instalador..."
+if [ ! -d "$SCRIPT_DIR/tools/node_modules" ]; then
+  (cd "$SCRIPT_DIR/tools" && npm install --no-fund --no-audit >/dev/null)
+fi
+node "$SCRIPT_DIR/tools/make-icon.js" \
+  "$PROJECT_ROOT/public/shared/brand/logo.png" \
+  "$STAGE/7zSD-original.sfx" \
+  "$STAGE/7zSD-custom.sfx" \
+  "$STAGE/app.ico"
 
 echo "==> Armando el paquete final..."
 rm -rf "$SCRIPT_DIR/dist"
@@ -71,6 +81,7 @@ cp "$SCRIPT_DIR/start-hidden.vbs" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/stop-server.vbs" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/reinstalar-dependencias.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/LEEME.txt" "$SCRIPT_DIR/dist/$DIST_NAME/"
+cp "$STAGE/app.ico" "$SCRIPT_DIR/dist/$DIST_NAME/app.ico"
 
 echo "==> Comprimiendo (.zip)..."
 cd "$SCRIPT_DIR/dist"
@@ -93,7 +104,7 @@ RunProgram="cmd /c INSTALAR.bat"
 ;!@InstallEnd@!
 EOF
 7z a -mx=5 -t7z "$SCRIPT_DIR/dist/.payload.7z" "./$DIST_NAME/"* >/dev/null
-cat "$STAGE/7zSD.sfx" "$SCRIPT_DIR/dist/.sfx-config.txt" "$SCRIPT_DIR/dist/.payload.7z" > "$SCRIPT_DIR/dist/CarteleraElBuenCorte-Setup.exe"
+cat "$STAGE/7zSD-custom.sfx" "$SCRIPT_DIR/dist/.sfx-config.txt" "$SCRIPT_DIR/dist/.payload.7z" > "$SCRIPT_DIR/dist/CarteleraElBuenCorte-Setup.exe"
 rm -f "$SCRIPT_DIR/dist/.sfx-config.txt" "$SCRIPT_DIR/dist/.payload.7z"
 
 echo "==> Listo:"

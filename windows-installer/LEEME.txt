@@ -7,7 +7,8 @@ CÓMO INSTALAR
    vez, para bajar una pieza necesaria de la base de datos).
 2. Haz doble clic en INSTALAR.bat
 3. Espera a que termine (puede tardar uno o dos minutos).
-4. Listo. Vas a ver un ícono "Panel de Cartelera" en el Escritorio.
+4. Listo. Vas a ver un ícono "Cartelera El Buen Corte" (con el logo del
+   local) en el Escritorio.
 
 La cartelera va a quedar funcionando en:
   http://localhost:4010/admin   (panel para cambiar precios y fotos)
@@ -16,6 +17,10 @@ La cartelera va a quedar funcionando en:
 Se instala en tu carpeta de usuario, no necesita que seas Administrador del
 PC. Y queda configurada para arrancar sola cada vez que se prende el PC —
 no hay que abrir nada a mano todos los días.
+
+El panel se abre como una ventana propia (con el logo del local como
+ícono en la barra de tareas), no como una pestaña más del navegador — así
+no se confunde con otras ventanas abiertas.
 
 CÓMO DESINSTALAR
 ------------------

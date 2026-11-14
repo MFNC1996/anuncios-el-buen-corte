@@ -13,3 +13,4 @@ windows-installer/stage/
 windows-installer/dist/
 windows-installer/.node-win-x64.zip
 
+windows-installer/tools/node_modules/

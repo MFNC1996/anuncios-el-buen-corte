@@ -39,7 +39,7 @@ timeout /t 2 /nobreak >nul
 echo Quitando accesos directos...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '%STARTMENU%';" ^
-  "Remove-Item -Force -ErrorAction SilentlyContinue '%USERPROFILE%\Desktop\Panel de Cartelera.lnk';" ^
+  "Remove-Item -Force -ErrorAction SilentlyContinue '%USERPROFILE%\Desktop\Cartelera El Buen Corte.lnk';" ^
   "Remove-Item -Force -ErrorAction SilentlyContinue '%STARTUP%'"
 
 reg delete "HKCU\Software\CarteleraElBuenCorte" /f >nul 2>&1

@@ -1,0 +1,9 @@
+{
+  "name": "windows-installer-tools",
+  "private": true,
+  "description": "Herramientas de build para el instalador de Windows (generar el .ico y ponérselo al módulo SFX). No es parte de la app, solo se usa al armar el instalador.",
+  "dependencies": {
+    "png-to-ico": "^3.0.2",
+    "resedit": "^3.1.0"
+  }
+}
