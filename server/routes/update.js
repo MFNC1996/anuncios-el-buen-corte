@@ -21,6 +21,21 @@ function currentVersion() {
   return require('../../package.json').version;
 }
 
+const UPDATE_LOG_PATH = path.join(INSTALL_ROOT, 'server', 'data', 'update.log');
+
+// Deja cada paso en server/data/update.log ademas de mandarlo por WebSocket,
+// para poder ver que paso incluso si nadie tenia el panel abierto en el
+// momento, o si el proceso murio antes de reiniciar.
+function logLine(line) {
+  broadcast('update:log', { line });
+  try {
+    fs.mkdirSync(path.dirname(UPDATE_LOG_PATH), { recursive: true });
+    fs.appendFileSync(UPDATE_LOG_PATH, `[${new Date().toISOString()}] ${line}\n`);
+  } catch (err) {
+    // no hay mucho que hacer si ni el log se puede escribir
+  }
+}
+
 // Compara "1.2.0" vs "1.10.0" numéricamente (no alfabéticamente), para que
 // 1.10.0 cuente como más nueva que 1.2.0.
 function compareVersions(a, b) {
@@ -72,14 +87,14 @@ function runStep(cmd, args, options) {
         .toString()
         .split('\n')
         .filter((l) => l.trim())
-        .forEach((line) => broadcast('update:log', { line }))
+        .forEach((line) => logLine(line))
     );
     child.stderr?.on('data', (d) =>
       d
         .toString()
         .split('\n')
         .filter((l) => l.trim())
-        .forEach((line) => broadcast('update:log', { line }))
+        .forEach((line) => logLine(line))
     );
     child.on('error', reject);
     child.on('close', (code) => {
@@ -121,30 +136,31 @@ async function applyUpdate() {
   const tmpZip = path.join(os.tmpdir(), 'ebcorte-update.zip');
   const tmpExtract = path.join(os.tmpdir(), 'ebcorte-update-extract');
 
-  broadcast('update:log', { line: `==> Descargando versión ${latestVersion}...` });
+  logLine(`==> Descargando versión ${latestVersion}...`);
   const assetRes = await fetch(asset.browser_download_url);
   if (!assetRes.ok) throw new Error(`No se pudo descargar la actualización (HTTP ${assetRes.status})`);
   const buf = Buffer.from(await assetRes.arrayBuffer());
   fs.writeFileSync(tmpZip, buf);
 
-  broadcast('update:log', { line: '==> Descomprimiendo...' });
+  logLine('==> Descomprimiendo...');
   fs.rmSync(tmpExtract, { recursive: true, force: true });
   fs.mkdirSync(tmpExtract, { recursive: true });
   new AdmZip(tmpZip).extractAllTo(tmpExtract, true);
 
-  broadcast('update:log', { line: '==> Copiando archivos nuevos (sin tocar precios ni fotos guardadas)...' });
+  logLine('==> Copiando archivos nuevos (sin tocar precios ni fotos guardadas)...');
   copyUpdateFiles(tmpExtract);
 
   fs.rmSync(tmpZip, { force: true });
   fs.rmSync(tmpExtract, { recursive: true, force: true });
 
-  broadcast('update:log', { line: '==> Instalando dependencias...' });
+  logLine('==> Instalando dependencias...');
   await runStep(npmExecutable(), ['install', '--omit=dev', '--no-fund', '--no-audit'], {
     cwd: INSTALL_ROOT,
     env: process.env,
+    shell: process.platform === 'win32', // npm.cmd no se puede ejecutar directo sin pasar por una shell en Windows
   });
 
-  broadcast('update:log', { line: '==> Reiniciando el servidor...' });
+  logLine('==> Reiniciando el servidor...');
   const entryPoint = require.main ? require.main.filename : path.join(INSTALL_ROOT, 'server', 'index.js');
   const dataDir = path.join(INSTALL_ROOT, 'server', 'data');
   fs.mkdirSync(dataDir, { recursive: true });
@@ -170,7 +186,7 @@ router.post('/apply', (req, res) => {
     })
     .catch((err) => {
       activeJob = false;
-      broadcast('update:log', { line: `Error: ${err.message}` });
+      logLine(`Error: ${err.message}`);
       broadcast('update:done', { success: false });
     });
 });
