@@ -80,6 +80,7 @@ cp "$SCRIPT_DIR/DESINSTALAR.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/start-hidden.vbs" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/stop-server.vbs" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/reinstalar-dependencias.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
+cp "$SCRIPT_DIR/instalar-tizen-studio.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/LEEME.txt" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$STAGE/app.ico" "$SCRIPT_DIR/dist/$DIST_NAME/app.ico"
 

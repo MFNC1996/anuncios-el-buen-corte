@@ -9,9 +9,15 @@ que se pueda abrir desde cualquier lado.
 
 > **Tip**: no hace falta usar la terminal para instalar. En el panel admin (`/admin`) hay una pestaña
 > **"Instalar en TV Samsung"** que hace exactamente esto mismo (empaquetar, conectar, instalar) con un
-> botón y muestra el progreso en vivo — siempre que el servidor esté corriendo en un PC con el SDK de
-> Tizen instalado y conectado a la wifi del local. Esta guía y `deploy-to-tv.sh` quedan como respaldo
-> manual, y son necesarios la primera vez para instalar el SDK en un PC nuevo.
+> botón y muestra el progreso en vivo — siempre que el servidor esté corriendo en un PC (Windows, Mac o
+> Linux) con el SDK de Tizen instalado y conectado a la wifi del local. Esta guía y `deploy-to-tv.sh`
+> quedan como respaldo manual para Mac/Linux, y el SDK es necesario instalarlo una sola vez en el PC
+> nuevo antes de poder usar el botón del panel.
+>
+> **Si el servidor va a correr en un PC con Windows** (el caso normal cuando se instaló con el
+> `Setup.exe` de `windows-installer/`): usa `windows-installer/instalar-tizen-studio.bat` en vez de esta
+> guía — instala el mismo SDK pero con las herramientas de Windows. Después de correrlo, el botón
+> "Instalar en TV Samsung" del panel funciona igual que se describe aquí.
 
 ## Qué ya quedó preparado (en este Mac)
 
@@ -28,6 +34,11 @@ computador**, repite el paso 1 ahí primero.
 ## El día que estés en el local, en orden:
 
 ### 1. (Solo si usas OTRO computador) Instala el SDK de Tizen y el certificado
+
+**En Windows**: corre `windows-installer/instalar-tizen-studio.bat` (doble clic) y pasa al paso 2. Hace
+lo mismo que los comandos de abajo, pero para Windows.
+
+**En Mac/Linux**:
 
 ```bash
 curl -fL -o web-cli_Tizen_Studio_6.0_macos-64.bin "https://download.tizen.org/sdk/Installer/tizen-studio_6.0/web-cli_Tizen_Studio_6.0_macos-64.bin"
@@ -83,7 +94,8 @@ del paso 3).
 
 ### 6. Instala y abre la app en la TV
 
-Desde esta carpeta (`tizen-app/`):
+Lo más simple es usar el botón "Instalar en TV Samsung" del panel admin (funciona igual en Windows, Mac
+o Linux). Si prefieres hacerlo a mano desde la terminal (Mac/Linux), desde esta carpeta (`tizen-app/`):
 
 ```bash
 ./deploy-to-tv.sh <IP-de-la-TV> <IP-del-servidor>

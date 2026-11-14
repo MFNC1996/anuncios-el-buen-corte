@@ -32,6 +32,14 @@ OJO: desinstalar borra también las fotos y los precios guardados. Si quieres
 guardar una copia antes, copia la carpeta "server\data" y "server\uploads"
 de adentro de la instalación.
 
+¿LA TV ES SAMSUNG?
+-------------------
+En el panel, pestaña "TV" → "TV Samsung (Tizen)", hay un botón para instalar la cartelera directo en la
+TV por wifi. Para que funcione, primero hay que instalar (una sola vez) el SDK de Tizen en este PC:
+ejecuta "instalar-tizen-studio.bat" dentro de la carpeta de instalación y sigue las instrucciones en
+pantalla (tarda varios minutos y necesita internet). Si la TV es Android TV, Google TV, Fire TV Stick o
+vas a usar un mini PC por HDMI, no necesitas esto — esos métodos no usan el SDK de Tizen.
+
 SI ALGO FALLA
 ---------------
 - Si al instalar dice que no pudo instalar las dependencias: revisa que el

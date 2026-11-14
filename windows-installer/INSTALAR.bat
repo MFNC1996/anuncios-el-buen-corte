@@ -35,6 +35,7 @@ if %ERRORLEVEL% GEQ 8 (
 copy /y "%SRC%\start-hidden.vbs" "%INSTALL_DIR%\start-hidden.vbs" >nul
 copy /y "%SRC%\stop-server.vbs" "%INSTALL_DIR%\stop-server.vbs" >nul
 copy /y "%SRC%\reinstalar-dependencias.bat" "%INSTALL_DIR%\reinstalar-dependencias.bat" >nul
+copy /y "%SRC%\instalar-tizen-studio.bat" "%INSTALL_DIR%\instalar-tizen-studio.bat" >nul
 copy /y "%SRC%\DESINSTALAR.bat" "%INSTALL_DIR%\DESINSTALAR.bat" >nul
 copy /y "%SRC%\app.ico" "%INSTALL_DIR%\app.ico" >nul
 

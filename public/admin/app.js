@@ -577,8 +577,10 @@
       tizenDeployBtn.disabled = !status.ready || status.busy;
       if (!status.ready) {
         tizenReadinessBody.innerHTML +=
-          '<p class="hint" style="margin-top:0.5rem">El SDK de Tizen no está instalado en este servidor. ' +
-          'Corre el servidor desde un PC que lo tenga instalado (ver <code>tizen-app/README.md</code>).</p>';
+          '<p class="hint" style="margin-top:0.5rem">El SDK de Tizen no está instalado en este PC. ' +
+          'Si este PC usa Windows, corre <code>instalar-tizen-studio.bat</code> (está dentro de la carpeta ' +
+          'donde quedó instalada la cartelera) y recarga esta página. En Mac/Linux, ver ' +
+          '<code>tizen-app/README.md</code>.</p>';
       }
     } catch (err) {
       tizenReadinessBody.innerHTML = `<p>No se pudo comprobar: ${escapeHtml(err.message)}</p>`;
