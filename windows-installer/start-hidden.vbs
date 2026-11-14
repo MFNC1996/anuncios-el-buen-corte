@@ -11,7 +11,13 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
 adminUrl = "http://localhost:4010/admin"
 
-cmd = "cmd /c cd /d """ & scriptDir & """ && ""node-runtime\node.exe"" ""server\index.js"""
+' Rutas absolutas (no relativas) para node.exe y server\index.js: asi el
+' proceso queda registrado en Windows con la carpeta de instalacion en su
+' propia linea de comando, que es justo lo que stop-server.vbs busca para
+' identificar y cerrar el proceso correcto.
+nodeExe = scriptDir & "\node-runtime\node.exe"
+serverJs = scriptDir & "\server\index.js"
+cmd = "cmd /c cd /d """ & scriptDir & """ && """ & nodeExe & """ """ & serverJs & """"
 objShell.Run cmd, 0, False
 
 ' Espera a que el servidor termine de levantar antes de abrir la ventana.
