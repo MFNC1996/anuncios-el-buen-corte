@@ -1,0 +1,122 @@
+name: Probar instalador en Windows real
+
+# Corre el instalador en una maquina Windows real (un runner de GitHub Actions,
+# Windows Server, no una simulacion). Arma el mismo paquete que build-installer.sh
+# (app + Node portable + los .bat/.vbs) y corre INSTALAR.bat tal cual lo haria
+# un usuario con doble clic, para confirmar que el servidor realmente levanta,
+# que los accesos directos quedan creados y que se puede detener. No pasa por
+# la ventana del instalador .exe (requiere un clic humano en "Si"), pero usa
+# exactamente el mismo contenido y los mismos scripts que el .exe extrae y
+# ejecuta.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Descargar Node.js portable (el mismo que usa el instalador)
+        shell: pwsh
+        run: |
+          $ver = "20.20.2"
+          Invoke-WebRequest -Uri "https://nodejs.org/dist/v$ver/node-v$ver-win-x64.zip" -OutFile node-portable.zip
+          Expand-Archive node-portable.zip -DestinationPath .
+          Rename-Item "node-v$ver-win-x64" node-runtime
+
+      - name: Armar el paquete (igual contenido que build-installer.sh)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package\app | Out-Null
+          robocopy . package\app /E /XD .git node_modules "server\data" "tizen-app\.build" windows-installer .claude .github package /XF *.db *.db-wal *.db-shm .DS_Store
+          if ($LASTEXITCODE -ge 8) { throw "robocopy del codigo de la app fallo (codigo $LASTEXITCODE)" }
+          New-Item -ItemType Directory -Force -Path package\app\server\uploads | Out-Null
+          New-Item -ItemType File -Force -Path package\app\server\uploads\.gitkeep | Out-Null
+          Move-Item node-runtime package\node-runtime
+          Copy-Item windows-installer\INSTALAR.bat package\
+          Copy-Item windows-installer\DESINSTALAR.bat package\
+          Copy-Item windows-installer\start-hidden.vbs package\
+          Copy-Item windows-installer\stop-server.vbs package\
+          Copy-Item windows-installer\reinstalar-dependencias.bat package\
+          Copy-Item windows-installer\instalar-tizen-studio.bat package\
+          Copy-Item windows-installer\LEEME.txt package\
+
+      - name: Generar app.ico (igual que make-icon.js, solo la parte del icono)
+        shell: pwsh
+        run: |
+          npm install --no-fund --no-audit png-to-ico
+          node -e "require('png-to-ico').default('public/shared/brand/logo.png').then(buf => require('fs').writeFileSync('package/app.ico', buf))"
+
+      - name: Correr INSTALAR.bat como lo haria un usuario real (doble clic)
+        shell: cmd
+        working-directory: package
+        run: |
+          INSTALAR.bat < nul
+
+      - name: Verificar accesos directos y registro
+        shell: pwsh
+        run: |
+          $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          $checks = @(
+            "$env:USERPROFILE\Desktop\Cartelera El Buen Corte.lnk",
+            "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Cartelera El Buen Corte\Cartelera El Buen Corte.lnk",
+            "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Cartelera El Buen Corte\Detener Cartelera.lnk",
+            "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Cartelera El Buen Corte\Desinstalar.lnk",
+            "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\Cartelera El Buen Corte.lnk",
+            "$installDir\node_modules",
+            "$installDir\app.ico",
+            "$installDir\instalar-tizen-studio.bat"
+          )
+          foreach ($c in $checks) {
+            if (-not (Test-Path $c)) { throw "Falta: $c" }
+            Write-Host "OK: $c"
+          }
+          $reg = Get-ItemProperty -Path HKCU:\Software\CarteleraElBuenCorte -ErrorAction Stop
+          Write-Host "OK: registro InstallDir = $($reg.InstallDir)"
+
+      - name: Verificar que el servidor realmente levanto
+        shell: pwsh
+        run: |
+          $ok = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            try {
+              $resp = Invoke-WebRequest -Uri http://localhost:4010/admin -UseBasicParsing -TimeoutSec 3
+              if ($resp.StatusCode -eq 200) { $ok = $true; break }
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+          if (-not $ok) { throw "El panel admin no respondio en http://localhost:4010/admin" }
+          Write-Host "OK: /admin respondio 200"
+
+          $tizen = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
+          Write-Host "OK: /api/tizen/check respondio -> $($tizen | ConvertTo-Json -Compress)"
+          if ($null -eq $tizen.ready) { throw "/api/tizen/check no devolvio el campo 'ready'" }
+
+          $info = Invoke-RestMethod -Uri http://localhost:4010/api/server-info -TimeoutSec 5
+          Write-Host "OK: /api/server-info respondio -> ip=$($info.ip)"
+
+      - name: Detener el servidor y verificar que se apaga
+        shell: pwsh
+        run: |
+          $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          wscript "$installDir\stop-server.vbs"
+          Start-Sleep -Seconds 3
+          $p = Get-Process node -ErrorAction SilentlyContinue
+          if ($p) { throw "node.exe seguia corriendo despues de stop-server.vbs" }
+          Write-Host "OK: el servidor se detuvo"
+
+      - name: Logs del servidor (por si algo falla)
+        if: always()
+        shell: pwsh
+        run: |
+          $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          Write-Host "---- Contenido de $installDir ----"
+          if (Test-Path $installDir) { Get-ChildItem -Recurse $installDir | Select-Object FullName | Out-String | Write-Host }
