@@ -37,6 +37,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path package\app | Out-Null
           robocopy . package\app /E /XD .git node_modules "server\data" "tizen-app\.build" windows-installer .claude .github package /XF *.db *.db-wal *.db-shm .DS_Store
           if ($LASTEXITCODE -ge 8) { throw "robocopy del codigo de la app fallo (codigo $LASTEXITCODE)" }
+          $global:LASTEXITCODE = 0 # robocopy devuelve 1-7 en casos exitosos; sin esto el step se marca como fallido igual
           New-Item -ItemType Directory -Force -Path package\app\server\uploads | Out-Null
           New-Item -ItemType File -Force -Path package\app\server\uploads\.gitkeep | Out-Null
           Move-Item node-runtime package\node-runtime
