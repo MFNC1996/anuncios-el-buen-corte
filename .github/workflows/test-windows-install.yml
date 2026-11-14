@@ -104,7 +104,70 @@ jobs:
           $info = Invoke-RestMethod -Uri http://localhost:4010/api/server-info -TimeoutSec 5
           Write-Host "OK: /api/server-info respondio -> ip=$($info.ip)"
 
-      - name: Detener el servidor y verificar que se apaga
+      - name: Preparar una version "vieja" para probar el actualizador
+        shell: pwsh
+        run: |
+          $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          wscript "$installDir\stop-server.vbs"
+          Start-Sleep -Seconds 3
+          if (Get-Process node -ErrorAction SilentlyContinue) { throw "node.exe seguia corriendo, no se pudo bajar la version para la prueba" }
+
+          $pkgPath = "$installDir\package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = "1.0.0"
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content $pkgPath
+
+          "FOTO DE PRUEBA - NO DEBE BORRARSE" | Set-Content "$installDir\server\uploads\foto-prueba.txt"
+          "BASE DE DATOS DE PRUEBA - NO DEBE BORRARSE" | Set-Content "$installDir\server\data\marcador-prueba.db"
+
+          wscript "$installDir\start-hidden.vbs"
+          Start-Sleep -Seconds 3
+
+      - name: Buscar y aplicar la actualizacion real (como lo haria el boton del panel)
+        shell: pwsh
+        run: |
+          $ok = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            try {
+              $check = Invoke-RestMethod -Uri http://localhost:4010/api/update/check -TimeoutSec 3
+              $ok = $true; break
+            } catch { Start-Sleep -Seconds 1 }
+          }
+          if (-not $ok) { throw "El servidor con la version vieja no respondio" }
+          Write-Host "Check -> $($check | ConvertTo-Json -Compress)"
+          if ($check.currentVersion -ne "1.0.0") { throw "currentVersion esperado 1.0.0, vino $($check.currentVersion)" }
+          if (-not $check.updateAvailable) { throw "updateAvailable deberia ser true" }
+
+          Invoke-RestMethod -Method Post -Uri http://localhost:4010/api/update/apply -TimeoutSec 5 | Out-Null
+
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              $resp = Invoke-WebRequest -Uri http://localhost:4010/admin -UseBasicParsing -TimeoutSec 3
+              if ($resp.StatusCode -eq 200) { $ok = $true; break }
+            } catch { Start-Sleep -Seconds 1 }
+          }
+          if (-not $ok) {
+            $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+            Write-Host "---- server\data\update.log ----"
+            Get-Content "$installDir\server\data\update.log" -ErrorAction SilentlyContinue | Write-Host
+            throw "El servidor no volvio a responder despues de actualizar"
+          }
+          Write-Host "OK: el servidor volvio a responder tras actualizar"
+
+          $after = Invoke-RestMethod -Uri http://localhost:4010/api/update/check -TimeoutSec 5
+          Write-Host "Check post-actualizacion -> $($after | ConvertTo-Json -Compress)"
+          if ($after.currentVersion -eq "1.0.0") { throw "La version no cambio tras actualizar" }
+
+      - name: Verificar que la actualizacion no borro fotos ni datos guardados
+        shell: pwsh
+        run: |
+          $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          if (-not (Test-Path "$installDir\server\uploads\foto-prueba.txt")) { throw "La actualizacion borro una foto guardada" }
+          if (-not (Test-Path "$installDir\server\data\marcador-prueba.db")) { throw "La actualizacion borro datos guardados" }
+          Write-Host "OK: fotos y datos guardados siguen intactos despues de actualizar"
+
+      - name: Detener el servidor (ya actualizado) y verificar que se apaga
         shell: pwsh
         run: |
           $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
@@ -119,5 +182,7 @@ jobs:
         shell: pwsh
         run: |
           $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          Write-Host "---- server\data\update.log ----"
+          Get-Content "$installDir\server\data\update.log" -ErrorAction SilentlyContinue | Write-Host
           Write-Host "---- Contenido de $installDir ----"
           if (Test-Path $installDir) { Get-ChildItem -Recurse $installDir | Select-Object FullName | Out-String | Write-Host }
