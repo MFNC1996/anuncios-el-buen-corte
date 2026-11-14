@@ -77,10 +77,18 @@ cd "$SCRIPT_DIR/dist"
 zip -rq "$DIST_NAME.zip" "$DIST_NAME"
 
 echo "==> Armando el instalador de un solo clic (.exe)..."
+# Directory="" es clave: el módulo arma el comando a ejecutar como
+# Directory + RunProgram pegados sin espacio. Por defecto Directory vale
+# ".\", así que sin esta línea "cmd /c INSTALAR.bat" queda convertido en
+# ".\cmd /c INSTALAR.bat" — Windows busca un archivo llamado "cmd" (sin
+# .exe) dentro de la carpeta extraída, no lo encuentra, y tira exactamente
+# "el sistema no puede encontrar el archivo especificado". Con Directory=""
+# no se pega nada y "cmd" se resuelve por el PATH del sistema como corresponde.
 cat > "$SCRIPT_DIR/dist/.sfx-config.txt" <<'EOF'
 ;!@Install@!UTF-8!
 Title="Cartelera El Buen Corte"
 BeginPrompt="Instalar Cartelera El Buen Corte?"
+Directory=""
 RunProgram="cmd /c INSTALAR.bat"
 ;!@InstallEnd@!
 EOF
