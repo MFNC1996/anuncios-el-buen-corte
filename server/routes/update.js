@@ -146,10 +146,13 @@ async function applyUpdate() {
 
   broadcast('update:log', { line: '==> Reiniciando el servidor...' });
   const entryPoint = require.main ? require.main.filename : path.join(INSTALL_ROOT, 'server', 'index.js');
+  const dataDir = path.join(INSTALL_ROOT, 'server', 'data');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const logFd = fs.openSync(path.join(dataDir, 'update.log'), 'a');
   const child = spawn(process.execPath, [entryPoint], {
     cwd: INSTALL_ROOT,
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', logFd, logFd],
     env: process.env,
   });
   child.unref();
