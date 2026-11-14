@@ -41,6 +41,10 @@ copy /y "%SRC%\app.ico" "%INSTALL_DIR%\app.ico" >nul
 
 echo [2/5] Instalando dependencias (necesita internet la primera vez)...
 pushd "%INSTALL_DIR%"
+REM Node portatil no esta en el PATH de Windows: sin esto, algunos paquetes
+REM (ej. better-sqlite3) fallan al compilar porque no encuentran "node" ni
+REM "node-gyp" al tratar de invocarlos durante su propia instalacion.
+set "PATH=%INSTALL_DIR%\node-runtime;%PATH%"
 call "node-runtime\npm.cmd" install --omit=dev --no-fund --no-audit
 set "NPM_RESULT=%ERRORLEVEL%"
 popd

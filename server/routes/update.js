@@ -154,9 +154,13 @@ async function applyUpdate() {
   fs.rmSync(tmpExtract, { recursive: true, force: true });
 
   logLine('==> Instalando dependencias...');
+  // Node portatil no esta en el PATH de Windows: sin esto, paquetes como
+  // better-sqlite3 fallan al compilar porque no encuentran "node" al
+  // invocarlo ellos mismos durante su propia instalacion.
+  const nodeDir = path.dirname(process.execPath);
   await runStep(npmExecutable(), ['install', '--omit=dev', '--no-fund', '--no-audit'], {
     cwd: INSTALL_ROOT,
-    env: process.env,
+    env: { ...process.env, PATH: `${nodeDir}${path.delimiter}${process.env.PATH}` },
     shell: process.platform === 'win32', // npm.cmd no se puede ejecutar directo sin pasar por una shell en Windows
   });
 

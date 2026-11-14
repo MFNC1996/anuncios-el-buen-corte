@@ -19,9 +19,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      # Deliberadamente NO se usa actions/setup-node aca: eso agregaria un
+      # Node al PATH del runner para TODO el job, y taparia justo el bug real
+      # que esto tiene que detectar (el PC del local no tiene node en el PATH
+      # fuera de la carpeta portatil que trae el instalador).
 
       - name: Descargar Node.js portable (el mismo que usa el instalador)
         shell: pwsh
@@ -52,8 +53,10 @@ jobs:
       - name: Generar app.ico (igual que make-icon.js, solo la parte del icono)
         shell: pwsh
         run: |
-          npm install --no-fund --no-audit png-to-ico
-          node -e "require('png-to-ico').default('public/shared/brand/logo.png').then(buf => require('fs').writeFileSync('package/app.ico', buf))"
+          # Usa el Node portatil (ya movido a package\node-runtime) a proposito,
+          # para no tener que agregar ningun node al PATH global del runner.
+          & "package\node-runtime\npm.cmd" install --no-fund --no-audit png-to-ico
+          & "package\node-runtime\node.exe" -e "require('png-to-ico').default('public/shared/brand/logo.png').then(buf => require('fs').writeFileSync('package/app.ico', buf))"
 
       - name: Correr INSTALAR.bat como lo haria un usuario real (doble clic)
         shell: cmd
@@ -72,6 +75,7 @@ jobs:
             "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Cartelera El Buen Corte\Desinstalar.lnk",
             "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\Cartelera El Buen Corte.lnk",
             "$installDir\node_modules",
+            "$installDir\node_modules\better-sqlite3\build\Release\better_sqlite3.node",
             "$installDir\app.ico",
             "$installDir\instalar-tizen-studio.bat"
           )
@@ -165,6 +169,7 @@ jobs:
           $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
           if (-not (Test-Path "$installDir\server\uploads\foto-prueba.txt")) { throw "La actualizacion borro una foto guardada" }
           if (-not (Test-Path "$installDir\server\data\marcador-prueba.db")) { throw "La actualizacion borro datos guardados" }
+          if (-not (Test-Path "$installDir\node_modules\better-sqlite3\build\Release\better_sqlite3.node")) { throw "better-sqlite3 no quedo compilado tras el npm install de la actualizacion" }
           Write-Host "OK: fotos y datos guardados siguen intactos despues de actualizar"
 
       - name: Detener el servidor (ya actualizado) y verificar que se apaga
