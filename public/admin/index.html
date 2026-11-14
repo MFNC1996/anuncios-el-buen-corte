@@ -23,6 +23,7 @@
     <button class="tab-btn" data-tab="playlist">Orden en pantalla</button>
     <button class="tab-btn" data-tab="local">Datos del local</button>
     <button class="tab-btn" data-tab="tv">TV</button>
+    <button class="tab-btn" data-tab="sistema">Software</button>
   </nav>
 
   <main>
@@ -188,6 +189,27 @@ X-GNOME-Autostart-enabled=true</pre>
           </div>
         </div>
       </details>
+    </section>
+
+    <section id="view-sistema" class="view" hidden>
+      <p class="hint">Desde aquí se instalan las actualizaciones del software (no de los precios/fotos,
+        eso se guarda siempre). Este PC necesita internet para buscar y bajar actualizaciones.</p>
+
+      <div class="category-card">
+        <div class="category-card__header"><strong>Versión instalada</strong></div>
+        <div class="local-form" style="grid-template-columns: 1fr;">
+          <p>Versión actual: <strong id="update-current-version">—</strong></p>
+          <p id="update-status">Sin buscar actualizaciones todavía.</p>
+        </div>
+      </div>
+
+      <button id="update-check" type="button" class="btn btn-primary">Buscar actualización</button>
+      <button id="update-apply" type="button" class="btn btn-primary" hidden>Actualizar ahora</button>
+
+      <div class="category-card" style="margin-top: 1rem;">
+        <div class="category-card__header"><strong>Progreso</strong></div>
+        <pre id="update-log" class="tizen-log">Esperando...</pre>
+      </div>
     </section>
   </main>
 

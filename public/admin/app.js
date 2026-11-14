@@ -611,6 +611,76 @@
     }
   });
 
+  // ---------------- Actualizaciones de software ----------------
+  const updateCurrentVersion = document.getElementById('update-current-version');
+  const updateStatus = document.getElementById('update-status');
+  const updateCheckBtn = document.getElementById('update-check');
+  const updateApplyBtn = document.getElementById('update-apply');
+  const updateLog = document.getElementById('update-log');
+
+  function appendUpdateLog(line) {
+    if (updateLog.textContent === 'Esperando...') updateLog.textContent = '';
+    updateLog.textContent += `${line}\n`;
+    updateLog.scrollTop = updateLog.scrollHeight;
+  }
+
+  async function checkForUpdate() {
+    updateCheckBtn.disabled = true;
+    updateStatus.textContent = 'Buscando...';
+    try {
+      const res = await fetch('/api/update/check');
+      const status = await res.json();
+      if (status.currentVersion) updateCurrentVersion.textContent = status.currentVersion;
+      if (!res.ok) throw new Error(status.error || `Error ${res.status}`);
+      if (status.updateAvailable) {
+        updateStatus.textContent = `Hay una versión nueva disponible: ${status.latestVersion}`;
+        updateApplyBtn.hidden = false;
+        updateApplyBtn.disabled = status.busy;
+      } else {
+        updateStatus.textContent = 'Ya tienes la última versión.';
+        updateApplyBtn.hidden = true;
+      }
+    } catch (err) {
+      updateStatus.textContent = `No se pudo buscar actualizaciones: ${err.message}`;
+    } finally {
+      updateCheckBtn.disabled = false;
+    }
+  }
+
+  updateCheckBtn.addEventListener('click', checkForUpdate);
+
+  updateApplyBtn.addEventListener('click', async () => {
+    updateApplyBtn.disabled = true;
+    updateCheckBtn.disabled = true;
+    updateLog.textContent = '';
+    appendUpdateLog('Iniciando actualización. No cierres esta ventana ni apagues el PC...');
+    try {
+      await api('POST', '/api/update/apply');
+    } catch (err) {
+      showToast(err.message, true);
+      updateApplyBtn.disabled = false;
+      updateCheckBtn.disabled = false;
+    }
+  });
+
+  checkForUpdate();
+
+  function waitForServerAndReload(attemptsLeft = 30) {
+    setTimeout(async () => {
+      try {
+        const res = await fetch('/api/update/check');
+        if (res.ok) {
+          location.reload();
+          return;
+        }
+      } catch (err) {
+        // el servidor todavia esta reiniciando
+      }
+      if (attemptsLeft > 0) waitForServerAndReload(attemptsLeft - 1);
+      else location.reload();
+    }, 1000);
+  }
+
   function connectAdminWs() {
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
     const socket = new WebSocket(`${protocol}://${location.host}/ws`);
@@ -627,6 +697,18 @@
         appendTizenLog(msg.payload.success ? '✅ Instalación completa.' : `❌ Terminó con error (código ${msg.payload.code}).`);
         showToast(msg.payload.success ? 'App instalada en la TV' : 'La instalación falló, revisa el registro', !msg.payload.success);
         checkTizenReadiness();
+      } else if (msg.event === 'update:log') {
+        appendUpdateLog(msg.payload.line);
+      } else if (msg.event === 'update:done') {
+        if (msg.payload.success) {
+          appendUpdateLog('✅ Actualización completa. Reiniciando y recargando esta página...');
+          waitForServerAndReload();
+        } else {
+          appendUpdateLog('❌ La actualización falló.');
+          showToast('La actualización falló, revisa el registro', true);
+          updateApplyBtn.disabled = false;
+          updateCheckBtn.disabled = false;
+        }
       }
     });
     socket.addEventListener('close', () => setTimeout(connectAdminWs, 3000));

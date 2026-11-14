@@ -13,6 +13,7 @@ const screensRouter = require('./routes/screens');
 const settingsRouter = require('./routes/settings');
 const tizenRouter = require('./routes/tizen');
 const serverInfoRouter = require('./routes/server-info');
+const updateRouter = require('./routes/update');
 
 const app = express();
 const PORT = process.env.PORT || 4010;
@@ -27,6 +28,7 @@ app.use('/api/screens', screensRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/tizen', tizenRouter);
 app.use('/api/server-info', serverInfoRouter);
+app.use('/api/update', updateRouter);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/shared', express.static(path.join(__dirname, '..', 'public', 'shared')));
@@ -53,8 +55,23 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 initWs(server);
 
-server.listen(PORT, '0.0.0.0', () => {
+// Al actualizar, el proceso nuevo arranca mientras el viejo todavia esta
+// soltando el puerto (ver server/routes/update.js) — reintenta un rato antes
+// de darse por vencido, en vez de fallar con EADDRINUSE por una carrera de
+// milisegundos.
+let listenRetriesLeft = 20;
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE' && listenRetriesLeft > 0) {
+    listenRetriesLeft -= 1;
+    setTimeout(() => server.listen(PORT, '0.0.0.0'), 500);
+  } else {
+    console.error(err);
+    process.exit(1);
+  }
+});
+server.on('listening', () => {
   console.log(`Servidor de cartelera escuchando en el puerto ${PORT}`);
   console.log(`Panel admin:  http://localhost:${PORT}/admin`);
   console.log(`Pantalla TV:  http://localhost:${PORT}/player/1`);
 });
+server.listen(PORT, '0.0.0.0');

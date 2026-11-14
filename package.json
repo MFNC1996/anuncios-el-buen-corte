@@ -1,12 +1,14 @@
 {
   "name": "anuncios-el-buen-corte",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cartelera digital para Carniceria El Buen Corte",
   "main": "server/index.js",
+  "repository": "MFNC1996/anuncios-el-buen-corte",
   "scripts": {
     "start": "node server/index.js"
   },
   "dependencies": {
+    "adm-zip": "^0.6.1",
     "better-sqlite3": "^11.3.0",
     "express": "^4.19.2",
     "multer": "^2.5.0",
