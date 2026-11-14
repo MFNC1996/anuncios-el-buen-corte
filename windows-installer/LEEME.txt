@@ -32,6 +32,13 @@ OJO: desinstalar borra también las fotos y los precios guardados. Si quieres
 guardar una copia antes, copia la carpeta "server\data" y "server\uploads"
 de adentro de la instalación.
 
+ACTUALIZACIONES
+-----------------
+En el panel, pestaña "Software", hay un botón "Buscar actualización". Si hay una versión nueva, aparece
+un botón "Actualizar ahora" que la baja e instala sola (necesita internet). Nunca borra los precios ni
+las fotos guardadas. Mientras actualiza, no cierres la ventana ni apagues el PC — la página se recarga
+sola cuando termina.
+
 ¿LA TV ES SAMSUNG?
 -------------------
 En el panel, pestaña "TV" → "TV Samsung (Tizen)", hay un botón para instalar la cartelera directo en la
