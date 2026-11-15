@@ -71,7 +71,9 @@ Los cambios se reflejan en la TV al instante, sin recargar nada.
 
 Si la TV es Android TV, Google TV, o usas un Fire TV Stick/Cube, no necesitas mini PC ni cable HDMI: la
 propia TV se conecta sola por wifi al servidor. Esta es la opción más simple y la que conviene pedirle al
-dueño que compre si todavía no tiene TV.
+dueño que compre si todavía no tiene TV. El panel admin (pestaña **TV**) tiene un botón que busca TVs en la
+red y otro que abre la cartelera en la TV por ADB sin escribir comandos — los pasos de abajo son para la
+configuración manual, o si prefieres hacerlo paso a paso.
 
 1. **Instala "Fully Kiosk Browser"** (app gratuita hecha justo para esto — pantallas que muestran una sola
    web a pantalla completa, sin que nadie pueda salir de ahí):
@@ -105,46 +107,14 @@ dueño que compre si todavía no tiene TV.
    o limpiar cosas, no se queda conectada de forma permanente; después la TV habla con el servidor solo
    por wifi normal.
 
-### Alternativa: mini PC / Raspberry Pi por HDMI
+### Si la TV termina siendo Samsung (Tizen)
 
-Si prefieres o ya tienes un mini PC/Raspberry Pi, conéctalo a la TV por HDMI, instala un navegador
-Chromium/Chrome y configúralo para que arranque automáticamente en modo kiosko apuntando a:
-
-```
-http://<IP-del-servidor>:4010/player/1
-```
-
-**Raspberry Pi OS** — crear/editar `~/.config/autostart/cartelera.desktop`:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Cartelera
-Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito http://<IP-del-servidor>:4010/player/1
-X-GNOME-Autostart-enabled=true
-```
-
-**Windows (mini PC)** — crear un acceso directo en la carpeta de inicio
-(`shell:startup`) apuntando a:
-
-```
-chrome.exe --kiosk --noerrdialogs --disable-infobars http://<IP-del-servidor>:4010/player/1
-```
-
-Para salir del modo kiosko en cualquier momento: `Alt+F4` (Windows) o `Alt+F4`/`Ctrl+W` (Raspberry Pi OS).
-
-### Si la TV termina siendo Samsung (Tizen) o LG (webOS)
-
-Estas no tienen ADB ni nada parecido. Samsung sí tiene un "Modo Desarrollador" propio (por wifi, con el
-SDK gratuito Tizen Studio) que permite instalar la cartelera como una app que arranca sola en la TV, pero
-es bastante más trabajo de configurar que Android TV/Fire TV. Si llegan a comprar una Samsung igual,
-dime y armamos ese camino — por ahora, para no complicarnos, lo mejor es Android TV/Google TV/Fire TV.
-
-Para la TV Samsung que ya tienen y quieren probar mientras tanto: dejé todo listo en
-[`tizen-app/`](tizen-app/README.md) — la app empaquetada, un script (`deploy-to-tv.sh`) que instala todo
-con un solo comando, y la guía paso a paso para el día que estés conectado a la misma wifi que la TV
-(tiene que ser en persona o con alguien ahí — esto no se puede hacer en remoto, es depuración de bajo
-nivel, no una página web).
+Samsung no tiene ADB, pero sí un "Modo Desarrollador" propio por wifi. El panel admin (pestaña **TV** →
+"TV Samsung") hace todo con dos botones: uno instala las herramientas de Tizen en este PC la primera vez
+(viene incluido en el instalador de Windows, no hay que descargar nada aparte) y el otro empaqueta e
+instala la cartelera en la TV. Todo esto tiene que hacerse en persona, conectado a la misma wifi que la
+TV — es depuración de bajo nivel, no una página web que se abra desde cualquier lado. La guía manual
+paso a paso (por si el botón no funciona) está en [`tizen-app/README.md`](tizen-app/README.md).
 
 ## 5. Próximos pasos (cuando se sumen más TVs)
 

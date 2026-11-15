@@ -53,7 +53,10 @@
       btn.classList.add('is-active');
       document.querySelectorAll('.view').forEach((v) => (v.hidden = true));
       document.getElementById(`view-${btn.dataset.tab}`).hidden = false;
-      if (btn.dataset.tab === 'tv') checkTizenReadiness();
+      if (btn.dataset.tab === 'tv') {
+        checkTizenReadiness();
+        checkAndroidReadiness();
+      }
     });
   });
 
@@ -550,9 +553,12 @@
 
   // ---------------- Instalar en TV Samsung (Tizen) ----------------
   const tizenReadinessBody = document.getElementById('tizen-readiness-body');
+  const tizenInstallSdkBtn = document.getElementById('tizen-install-sdk');
   const tizenTvIpInput = document.getElementById('tizen-tv-ip');
   const tizenServerIpInput = document.getElementById('tizen-server-ip');
   const tizenDeployBtn = document.getElementById('tizen-deploy');
+  const tizenScanBtn = document.getElementById('tizen-scan');
+  const tizenScanResults = document.getElementById('tizen-scan-results');
   const tizenLog = document.getElementById('tizen-log');
 
   function readinessRow(ok, label) {
@@ -561,6 +567,7 @@
 
   async function checkTizenReadiness() {
     tizenReadinessBody.innerHTML = '<p>Comprobando...</p>';
+    tizenInstallSdkBtn.hidden = true;
     try {
       const status = await api('GET', '/api/tizen/check');
       tizenReadinessBody.innerHTML =
@@ -576,11 +583,15 @@
       }
       tizenDeployBtn.disabled = !status.ready || status.busy;
       if (!status.ready) {
-        tizenReadinessBody.innerHTML +=
-          '<p class="hint" style="margin-top:0.5rem">El SDK de Tizen no está instalado en este PC. ' +
-          'Si este PC usa Windows, corre <code>instalar-tizen-studio.bat</code> (está dentro de la carpeta ' +
-          'donde quedó instalada la cartelera) y recarga esta página. En Mac/Linux, ver ' +
-          '<code>tizen-app/README.md</code>.</p>';
+        if (status.canAutoInstallSdk) {
+          tizenInstallSdkBtn.hidden = false;
+          tizenInstallSdkBtn.disabled = status.busy;
+        } else {
+          tizenReadinessBody.innerHTML +=
+            '<p class="hint" style="margin-top:0.5rem">El SDK de Tizen no está instalado en este PC ' +
+            '(y la instalación automática solo está disponible en Windows). Ver ' +
+            '<code>tizen-app/README.md</code>.</p>';
+        }
       }
     } catch (err) {
       tizenReadinessBody.innerHTML = `<p>No se pudo comprobar: ${escapeHtml(err.message)}</p>`;
@@ -593,6 +604,17 @@
     tizenLog.textContent += `${line}\n`;
     tizenLog.scrollTop = tizenLog.scrollHeight;
   }
+
+  tizenInstallSdkBtn.addEventListener('click', async () => {
+    tizenLog.textContent = '';
+    tizenInstallSdkBtn.disabled = true;
+    try {
+      await api('POST', '/api/tizen/install-sdk');
+    } catch (err) {
+      showToast(err.message, true);
+      tizenInstallSdkBtn.disabled = false;
+    }
+  });
 
   tizenDeployBtn.addEventListener('click', async () => {
     const tvIp = tizenTvIpInput.value.trim();
@@ -608,6 +630,147 @@
     } catch (err) {
       showToast(err.message, true);
       tizenDeployBtn.disabled = false;
+    }
+  });
+
+  function renderScanResults(container, devices, onPick) {
+    if (!devices.length) {
+      container.innerHTML = '<p class="hint">No se encontró ninguna TV en la red. Escribe la IP a mano.</p>';
+      return;
+    }
+    const labels = { samsung: 'Samsung (Tizen)', android: 'Android/Google TV/Fire TV' };
+    container.innerHTML = devices
+      .map((d) => `<button type="button" class="btn-icon" data-ip="${d.ip}">📺 ${d.ip} — ${labels[d.type] || d.type}</button>`)
+      .join(' ');
+    container.querySelectorAll('button[data-ip]').forEach((btn) => {
+      btn.addEventListener('click', () => onPick(btn.dataset.ip));
+    });
+  }
+
+  tizenScanBtn.addEventListener('click', async () => {
+    tizenScanBtn.disabled = true;
+    tizenScanResults.innerHTML = '<p class="hint">Buscando en la red (puede tardar unos segundos)...</p>';
+    try {
+      const { devices } = await api('GET', '/api/network/scan');
+      renderScanResults(tizenScanResults, devices, (ip) => {
+        tizenTvIpInput.value = ip;
+      });
+    } catch (err) {
+      tizenScanResults.innerHTML = `<p class="hint">No se pudo buscar: ${escapeHtml(err.message)}</p>`;
+    } finally {
+      tizenScanBtn.disabled = false;
+    }
+  });
+
+  // ---------------- Instalar en TV Android / Google TV / Fire TV Stick ----------------
+  const androidReadinessBody = document.getElementById('android-readiness-body');
+  const androidTvIpInput = document.getElementById('android-tv-ip');
+  const androidDeployBtn = document.getElementById('android-deploy');
+  const androidOpenStoreBtn = document.getElementById('android-open-store');
+  const androidScanBtn = document.getElementById('android-scan');
+  const androidScanResults = document.getElementById('android-scan-results');
+  const androidApkFile = document.getElementById('android-apk-file');
+  const androidInstallApkBtn = document.getElementById('android-install-apk');
+  const androidLog = document.getElementById('android-log');
+  let androidServerIp = '';
+
+  function appendAndroidLog(line) {
+    if (androidLog.textContent === 'Esperando...') androidLog.textContent = '';
+    androidLog.textContent += `${line}\n`;
+    androidLog.scrollTop = androidLog.scrollHeight;
+  }
+
+  function setAndroidBusy(busy) {
+    [androidDeployBtn, androidOpenStoreBtn, androidInstallApkBtn].forEach((b) => (b.disabled = busy));
+  }
+
+  async function checkAndroidReadiness() {
+    androidReadinessBody.innerHTML = '<p>Comprobando...</p>';
+    try {
+      const status = await api('GET', '/api/android/check');
+      androidServerIp = status.serverIp || '';
+      androidReadinessBody.innerHTML =
+        readinessRow(status.ready, 'Herramienta <code>adb</code> encontrada') +
+        (status.busy ? readinessRow(false, 'Hay una operación en curso ahora mismo') : '');
+      setAndroidBusy(!status.ready || status.busy);
+    } catch (err) {
+      androidReadinessBody.innerHTML = `<p>No se pudo comprobar: ${escapeHtml(err.message)}</p>`;
+      setAndroidBusy(true);
+    }
+  }
+
+  androidScanBtn.addEventListener('click', async () => {
+    androidScanBtn.disabled = true;
+    androidScanResults.innerHTML = '<p class="hint">Buscando en la red (puede tardar unos segundos)...</p>';
+    try {
+      const { devices } = await api('GET', '/api/network/scan');
+      renderScanResults(androidScanResults, devices, (ip) => {
+        androidTvIpInput.value = ip;
+      });
+    } catch (err) {
+      androidScanResults.innerHTML = `<p class="hint">No se pudo buscar: ${escapeHtml(err.message)}</p>`;
+    } finally {
+      androidScanBtn.disabled = false;
+    }
+  });
+
+  androidDeployBtn.addEventListener('click', async () => {
+    const tvIp = androidTvIpInput.value.trim();
+    if (!tvIp) {
+      showToast('Completa la IP de la TV', true);
+      return;
+    }
+    androidLog.textContent = '';
+    setAndroidBusy(true);
+    try {
+      await api('POST', '/api/android/deploy', { tvIp, serverIp: androidServerIp });
+    } catch (err) {
+      showToast(err.message, true);
+      setAndroidBusy(false);
+    }
+  });
+
+  androidOpenStoreBtn.addEventListener('click', async () => {
+    const tvIp = androidTvIpInput.value.trim();
+    if (!tvIp) {
+      showToast('Completa la IP de la TV', true);
+      return;
+    }
+    androidLog.textContent = '';
+    setAndroidBusy(true);
+    try {
+      await api('POST', '/api/android/open-play-store', { tvIp });
+    } catch (err) {
+      showToast(err.message, true);
+      setAndroidBusy(false);
+    }
+  });
+
+  androidInstallApkBtn.addEventListener('click', async () => {
+    const tvIp = androidTvIpInput.value.trim();
+    const file = androidApkFile.files[0];
+    if (!tvIp) {
+      showToast('Completa la IP de la TV', true);
+      return;
+    }
+    if (!file) {
+      showToast('Elige un archivo .apk', true);
+      return;
+    }
+    androidLog.textContent = '';
+    setAndroidBusy(true);
+    const formData = new FormData();
+    formData.append('apk', file);
+    formData.append('tvIp', tvIp);
+    try {
+      const res = await fetch('/api/android/install-apk', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+    } catch (err) {
+      showToast(err.message, true);
+      setAndroidBusy(false);
     }
   });
 
@@ -709,6 +872,19 @@
           updateApplyBtn.disabled = false;
           updateCheckBtn.disabled = false;
         }
+      } else if (msg.event === 'tizensdk:log') {
+        appendTizenLog(msg.payload.line);
+      } else if (msg.event === 'tizensdk:done') {
+        appendTizenLog(msg.payload.success ? '✅ SDK instalado.' : '❌ La instalación del SDK falló.');
+        showToast(msg.payload.success ? 'SDK de Tizen instalado' : 'Falló la instalación del SDK, revisa el registro', !msg.payload.success);
+        checkTizenReadiness();
+      } else if (msg.event === 'android:log') {
+        appendAndroidLog(msg.payload.line);
+      } else if (msg.event === 'android:done') {
+        appendAndroidLog(msg.payload.success ? '✅ Listo.' : '❌ Terminó con error.');
+        showToast(msg.payload.success ? 'Listo' : 'Falló, revisa el registro', !msg.payload.success);
+        setAndroidBusy(false);
+        checkAndroidReadiness();
       }
     });
     socket.addEventListener('close', () => setTimeout(connectAdminWs, 3000));

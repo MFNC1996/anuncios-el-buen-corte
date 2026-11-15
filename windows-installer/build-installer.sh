@@ -19,6 +19,7 @@ set -e
 
 NODE_VERSION="20.20.2"
 LZMA_SDK_VERSION="2606"
+TIZEN_VERSION="6.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STAGE="$SCRIPT_DIR/stage"
@@ -60,6 +61,24 @@ else
   echo "==> Módulo SFX original ya está en stage/7zSD-original.sfx, lo reutilizo."
 fi
 
+if [ ! -d "$STAGE/platform-tools" ]; then
+  echo "==> Descargando Android Platform Tools (adb) para Windows..."
+  ZIP="$SCRIPT_DIR/.platform-tools.zip"
+  curl -fL -o "$ZIP" "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+  unzip -q "$ZIP" -d "$STAGE"
+  rm -f "$ZIP"
+else
+  echo "==> Android Platform Tools ya está en stage/platform-tools, lo reutilizo."
+fi
+
+if [ ! -f "$STAGE/tizen-studio-installer.exe" ]; then
+  echo "==> Descargando el instalador del SDK de Tizen para Windows (~280MB, va adentro del programa)..."
+  curl -fL -o "$STAGE/tizen-studio-installer.exe" \
+    "https://download.tizen.org/sdk/Installer/tizen-studio_${TIZEN_VERSION}/web-cli_Tizen_Studio_${TIZEN_VERSION}_windows-64.exe"
+else
+  echo "==> Instalador del SDK de Tizen ya está en stage/, lo reutilizo."
+fi
+
 echo "==> Generando ícono propio (a partir del logo) y poniéndoselo al instalador..."
 if [ ! -d "$SCRIPT_DIR/tools/node_modules" ]; then
   (cd "$SCRIPT_DIR/tools" && npm install --no-fund --no-audit >/dev/null)
@@ -83,6 +102,8 @@ cp "$SCRIPT_DIR/reinstalar-dependencias.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/instalar-tizen-studio.bat" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$SCRIPT_DIR/LEEME.txt" "$SCRIPT_DIR/dist/$DIST_NAME/"
 cp "$STAGE/app.ico" "$SCRIPT_DIR/dist/$DIST_NAME/app.ico"
+cp "$STAGE/tizen-studio-installer.exe" "$SCRIPT_DIR/dist/$DIST_NAME/tizen-studio-installer.exe"
+cp -R "$STAGE/platform-tools" "$SCRIPT_DIR/dist/$DIST_NAME/platform-tools"
 
 echo "==> Comprimiendo (.zip)..."
 cd "$SCRIPT_DIR/dist"

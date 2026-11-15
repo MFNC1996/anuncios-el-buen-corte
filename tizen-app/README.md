@@ -15,9 +15,10 @@ que se pueda abrir desde cualquier lado.
 > nuevo antes de poder usar el botón del panel.
 >
 > **Si el servidor va a correr en un PC con Windows** (el caso normal cuando se instaló con el
-> `Setup.exe` de `windows-installer/`): usa `windows-installer/instalar-tizen-studio.bat` en vez de esta
-> guía — instala el mismo SDK pero con las herramientas de Windows. Después de correrlo, el botón
-> "Instalar en TV Samsung" del panel funciona igual que se describe aquí.
+> `Setup.exe` de `windows-installer/`): el propio panel admin (pestaña TV → TV Samsung) tiene un botón
+> "Instalar herramientas de Tizen" que hace esto solo, con el instalador del SDK ya incluido adentro del
+> `Setup.exe` — no hace falta descargar ni correr nada aparte. `windows-installer/instalar-tizen-studio.bat`
+> queda como respaldo manual por si ese botón fallara por algún motivo.
 
 ## Qué ya quedó preparado (en este Mac)
 

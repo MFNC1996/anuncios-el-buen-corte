@@ -15,7 +15,7 @@ on:
 jobs:
   test:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +32,13 @@ jobs:
           Expand-Archive node-portable.zip -DestinationPath .
           Rename-Item "node-v$ver-win-x64" node-runtime
 
+      - name: Descargar el instalador del SDK de Tizen y Android Platform Tools (igual que el instalador real)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://download.tizen.org/sdk/Installer/tizen-studio_6.0/web-cli_Tizen_Studio_6.0_windows-64.exe" -OutFile tizen-studio-installer.exe
+          Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile platform-tools.zip
+          Expand-Archive platform-tools.zip -DestinationPath .
+
       - name: Armar el paquete (igual contenido que build-installer.sh)
         shell: pwsh
         run: |
@@ -42,6 +49,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path package\app\server\uploads | Out-Null
           New-Item -ItemType File -Force -Path package\app\server\uploads\.gitkeep | Out-Null
           Move-Item node-runtime package\node-runtime
+          Move-Item platform-tools package\platform-tools
+          Move-Item tizen-studio-installer.exe package\tizen-studio-installer.exe
           Copy-Item windows-installer\INSTALAR.bat package\
           Copy-Item windows-installer\DESINSTALAR.bat package\
           Copy-Item windows-installer\start-hidden.vbs package\
@@ -77,7 +86,9 @@ jobs:
             "$installDir\node_modules",
             "$installDir\node_modules\better-sqlite3\build\Release\better_sqlite3.node",
             "$installDir\app.ico",
-            "$installDir\instalar-tizen-studio.bat"
+            "$installDir\instalar-tizen-studio.bat",
+            "$installDir\tizen-studio-installer.exe",
+            "$installDir\platform-tools\adb.exe"
           )
           foreach ($c in $checks) {
             if (-not (Test-Path $c)) { throw "Falta: $c" }
@@ -104,9 +115,41 @@ jobs:
           $tizen = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
           Write-Host "OK: /api/tizen/check respondio -> $($tizen | ConvertTo-Json -Compress)"
           if ($null -eq $tizen.ready) { throw "/api/tizen/check no devolvio el campo 'ready'" }
+          if (-not $tizen.canAutoInstallSdk) { throw "canAutoInstallSdk deberia ser true (el .exe del SDK viene incluido)" }
 
           $info = Invoke-RestMethod -Uri http://localhost:4010/api/server-info -TimeoutSec 5
           Write-Host "OK: /api/server-info respondio -> ip=$($info.ip)"
+
+          $android = Invoke-RestMethod -Uri http://localhost:4010/api/android/check -TimeoutSec 5
+          Write-Host "OK: /api/android/check respondio -> $($android | ConvertTo-Json -Compress)"
+          if (-not $android.ready) { throw "adb deberia estar listo (platform-tools viene incluido)" }
+
+          $scan = Invoke-RestMethod -Uri http://localhost:4010/api/network/scan -TimeoutSec 15
+          Write-Host "OK: /api/network/scan respondio -> $($scan.devices.Count) dispositivo(s)"
+
+      - name: Instalar el SDK de Tizen de verdad (boton real del panel) en Windows real
+        shell: pwsh
+        run: |
+          Invoke-RestMethod -Method Post -Uri http://localhost:4010/api/tizen/install-sdk -TimeoutSec 5 | Out-Null
+
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            try {
+              $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
+              if ($status.ready) { $ok = $true; break }
+              if (-not $status.busy) {
+                # termino (bien o mal) pero no quedo "ready": no sigas esperando los 90 intentos
+                break
+              }
+            } catch {}
+            Start-Sleep -Seconds 5
+          }
+          if (-not $ok) { throw "La instalacion del SDK de Tizen no dejo tizen/sdb listos" }
+          Write-Host "OK: SDK de Tizen instalado y detectado por /api/tizen/check"
+
+          $certPath = "$env:USERPROFILE\tizen-studio-data\keystore\author\ebcorte.p12"
+          if (-not (Test-Path $certPath)) { throw "No se creo el certificado de firma esperado: $certPath" }
+          Write-Host "OK: certificado de firma creado"
 
       - name: Preparar una version "vieja" para probar el actualizador
         shell: pwsh

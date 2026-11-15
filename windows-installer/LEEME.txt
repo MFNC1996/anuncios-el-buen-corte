@@ -39,13 +39,13 @@ un botón "Actualizar ahora" que la baja e instala sola (necesita internet). Nun
 las fotos guardadas. Mientras actualiza, no cierres la ventana ni apagues el PC — la página se recarga
 sola cuando termina.
 
-¿LA TV ES SAMSUNG?
--------------------
-En el panel, pestaña "TV" → "TV Samsung (Tizen)", hay un botón para instalar la cartelera directo en la
-TV por wifi. Para que funcione, primero hay que instalar (una sola vez) el SDK de Tizen en este PC:
-ejecuta "instalar-tizen-studio.bat" dentro de la carpeta de instalación y sigue las instrucciones en
-pantalla (tarda varios minutos y necesita internet). Si la TV es Android TV, Google TV, Fire TV Stick o
-vas a usar un mini PC por HDMI, no necesitas esto — esos métodos no usan el SDK de Tizen.
+CONECTAR LA TV
+----------------
+Todo se hace desde el panel, pestaña "TV" — no hay que buscar ni correr nada a mano:
+- Android TV / Google TV / Fire TV Stick: botón "Buscar TVs en la red" para encontrarla sola, y "Abrir
+  cartelera en la TV" para mostrarla (necesita Fully Kiosk Browser instalado en la TV una sola vez).
+- TV Samsung (Tizen): botón "Instalar herramientas de Tizen" la primera vez (ya viene todo incluido en
+  este instalador, solo tarda unos minutos y necesita internet), y después "Instalar en la TV".
 
 SI ALGO FALLA
 ---------------

@@ -101,45 +101,56 @@
           <span class="tag-recommended">Recomendado</span>
         </summary>
         <div class="tv-method__body">
-          <p>Sin cables ni PC extra: la propia TV se conecta sola por wifi.</p>
+          <p>Sin cables ni PC extra: la propia TV se conecta sola por wifi. Primero, una sola vez desde la
+            TV, instala <strong>Fully Kiosk Browser</strong> (gratis) — en Android TV/Google TV búscala en
+            su Play Store (o usa el botón "Abrir Play Store en la TV" de abajo). En Fire TV Stick no está en
+            la tienda de Amazon: descarga el .apk desde el sitio oficial de Fully Kiosk Browser en este PC, y
+            súbelo con "Instalar un .apk en la TV" más abajo.</p>
           <ol>
-            <li>Instala la app <strong>Fully Kiosk Browser</strong> (gratis).
-              <ul>
-                <li><strong>Android TV / Google TV</strong>: búscala directo en su Play Store.</li>
-                <li><strong>Fire TV Stick</strong>: no está en la tienda de Amazon, se instala por ADB
-                  (activa "Opciones de desarrollador" presionando 7 veces el nombre del equipo en
-                  <em>Ajustes → My Fire TV → About</em>, luego <code>adb connect &lt;ip-del-Fire-TV&gt;:5555</code>
-                  y <code>adb install FullyKioskBrowser.apk</code> desde un PC en la misma wifi).</li>
-              </ul>
-            </li>
-            <li>Dentro de la app, en sus ajustes:
-              <ul>
-                <li><strong>Start URL</strong>: <code id="tv-player-url-1">http://&lt;IP-del-servidor&gt;:4010/player/1</code></li>
-                <li><strong>Launch on Boot</strong>: Sí (antes activa el permiso "Modify system settings"
-                  para Fully Kiosk Browser en los ajustes de la TV)</li>
-                <li><strong>Keep Screen On</strong>: activado</li>
-                <li><strong>Fullscreen Mode</strong>: activado — oculta la barra de acción y de dirección</li>
-              </ul>
-            </li>
+            <li>En la TV: <strong>Ajustes → Preferencias del dispositivo (o About) → Depuración → Depuración
+              USB/por red</strong>: actívala. En algunos modelos hay que tocar 7 veces el número de compilación
+              primero para activar "Opciones de desarrollador".</li>
+            <li>Anota la IP de la TV (Ajustes → Red) y escríbela abajo, o usa "Buscar TVs en la red".</li>
           </ol>
-        </div>
-      </details>
 
-      <details class="tv-method">
-        <summary>
-          <span class="tv-method__title">🖥️ Mini PC / Raspberry Pi por HDMI</span>
-        </summary>
-        <div class="tv-method__body">
-          <p>Conecta el mini PC/Raspberry Pi a la TV por HDMI, instala Chromium/Chrome y déjalo en modo
-            kiosko apuntando a <code>http://&lt;IP-del-servidor&gt;:4010/player/1</code>.</p>
-          <p><strong>Raspberry Pi OS</strong> — crear <code>~/.config/autostart/cartelera.desktop</code>:</p>
-          <pre class="code-block">[Desktop Entry]
-Type=Application
-Name=Cartelera
-Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito http://&lt;IP-del-servidor&gt;:4010/player/1
-X-GNOME-Autostart-enabled=true</pre>
-          <p><strong>Windows (mini PC)</strong> — acceso directo en la carpeta de inicio (<code>shell:startup</code>):</p>
-          <pre class="code-block">chrome.exe --kiosk --noerrdialogs --disable-infobars http://&lt;IP-del-servidor&gt;:4010/player/1</pre>
+          <div id="android-readiness" class="category-card">
+            <div class="category-card__header"><strong>Estado de este servidor</strong></div>
+            <div id="android-readiness-body" class="local-form" style="grid-template-columns: 1fr;">
+              <p>Comprobando...</p>
+            </div>
+          </div>
+
+          <div class="category-card">
+            <div class="category-card__header"><strong>IP de la TV</strong></div>
+            <div class="local-form">
+              <label>IP de la TV
+                <input type="text" id="android-tv-ip" placeholder="192.168.1.42" />
+              </label>
+            </div>
+            <button id="android-scan" type="button" class="btn-icon">🔎 Buscar TVs en la red</button>
+            <div id="android-scan-results"></div>
+          </div>
+
+          <button id="android-deploy" type="button" class="btn btn-primary">Abrir cartelera en la TV</button>
+          <button id="android-open-store" type="button" class="btn-icon">Abrir Play Store en la TV (Android TV / Google TV)</button>
+
+          <div class="category-card" style="margin-top: 1rem;">
+            <div class="category-card__header"><strong>Instalar un .apk en la TV (ej. Fire TV Stick)</strong></div>
+            <div class="local-form">
+              <input type="file" id="android-apk-file" accept=".apk" />
+            </div>
+            <button id="android-install-apk" type="button" class="btn-icon">Instalar .apk en la TV</button>
+          </div>
+
+          <div class="category-card" style="margin-top: 1rem;">
+            <div class="category-card__header"><strong>Progreso</strong></div>
+            <pre id="android-log" class="tizen-log">Esperando...</pre>
+          </div>
+
+          <p class="hint">Para que quede fija y arranque sola con la TV (no solo abierta por ahora), entra una
+            vez a los ajustes de Fully Kiosk en la TV con el control y activa <strong>Start URL</strong> (pégale
+            la misma dirección), <strong>Launch on Boot</strong>, <strong>Keep Screen On</strong> y
+            <strong>Fullscreen Mode</strong>.</p>
         </div>
       </details>
 
@@ -149,18 +160,16 @@ X-GNOME-Autostart-enabled=true</pre>
         </summary>
         <div class="tv-method__body">
           <p>Lo único que se toca en el control remoto de la TV: activar el Modo Desarrollador y anotar su
-            IP. Todo lo demás (empaquetar la app, conectarse, instalarla) lo hace el botón de abajo.</p>
+            IP. Todo lo demás (instalar el SDK la primera vez, empaquetar la app, conectarse, instalarla) lo
+            hacen los botones de abajo — no hay que buscar ni correr ningún archivo a mano.</p>
           <ol>
             <li>En el control: <strong>Apps</strong> → ícono de engranaje o botón <strong>123</strong> →
               escribe <strong>12345</strong>.</li>
             <li>Activa <strong>Developer mode</strong> e ingresa la IP de este PC.</li>
             <li>Acepta y reinicia la TV cuando lo pida.</li>
-            <li>Anota la IP de la TV: <strong>Configuración → General → Red → Estado de la red</strong>.</li>
+            <li>Anota la IP de la TV: <strong>Configuración → General → Red → Estado de la red</strong> (o
+              usa "Buscar TVs en la red" de abajo).</li>
           </ol>
-          <p class="hint">Esto (el botón de instalar) solo funciona si <strong>este servidor</strong> está
-            corriendo en un PC conectado a la <strong>misma wifi que la TV</strong>, con el SDK de Tizen
-            instalado. Si no es el caso, usa la guía manual en <code>tizen-app/README.md</code> desde el PC
-            correcto.</p>
 
           <div id="tizen-readiness" class="category-card">
             <div class="category-card__header"><strong>Estado de este servidor</strong></div>
@@ -168,6 +177,8 @@ X-GNOME-Autostart-enabled=true</pre>
               <p>Comprobando...</p>
             </div>
           </div>
+
+          <button id="tizen-install-sdk" type="button" class="btn btn-primary" hidden>Instalar herramientas de Tizen</button>
 
           <div class="category-card">
             <div class="category-card__header"><strong>Datos de la instalación</strong></div>
@@ -179,6 +190,8 @@ X-GNOME-Autostart-enabled=true</pre>
                 <input type="text" id="tizen-server-ip" placeholder="192.168.1.50" />
               </label>
             </div>
+            <button id="tizen-scan" type="button" class="btn-icon">🔎 Buscar TVs en la red</button>
+            <div id="tizen-scan-results"></div>
           </div>
 
           <button id="tizen-deploy" type="button" class="btn btn-primary">Instalar en la TV</button>

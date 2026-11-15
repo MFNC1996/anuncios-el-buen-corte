@@ -7,42 +7,58 @@ const { broadcast } = require('../ws');
 const { detectServerIp } = require('../network-info');
 
 const router = express.Router();
-const TIZEN_APP_DIR = path.join(__dirname, '..', '..', 'tizen-app');
+const INSTALL_ROOT = path.join(__dirname, '..', '..');
+const TIZEN_APP_DIR = path.join(INSTALL_ROOT, 'tizen-app');
 const BUILD_DIR = path.join(TIZEN_APP_DIR, '.build');
 const SRC_DIR = path.join(BUILD_DIR, 'src');
+const INSTALLER_EXE = path.join(INSTALL_ROOT, 'tizen-studio-installer.exe');
+
+function tizenHome() {
+  return path.join(os.homedir(), 'tizen-studio');
+}
 
 // PATH de las herramientas de Tizen Studio (tizen/sdb), igual en Windows,
 // Mac o Linux: siempre viven en ~/tizen-studio dentro del home del usuario
 // que corre el servidor. path.delimiter/path.join resuelven el separador
 // (';' en Windows, ':' en Mac/Linux) y las barras correctas de cada OS solos.
 function tizenEnv() {
-  const home = os.homedir();
-  const toolsBin = path.join(home, 'tizen-studio', 'tools', 'ide', 'bin');
-  const tools = path.join(home, 'tizen-studio', 'tools');
+  const toolsBin = path.join(tizenHome(), 'tools', 'ide', 'bin');
+  const tools = path.join(tizenHome(), 'tools');
   return { ...process.env, PATH: `${toolsBin}${path.delimiter}${tools}${path.delimiter}${process.env.PATH}` };
 }
 
 function commandExists(cmd, env) {
   return new Promise((resolve) => {
-    execFile(cmd, ['version'], { env, timeout: 10000 }, (err) => resolve(!err));
+    execFile(cmd, ['version'], { env, timeout: 10000, shell: process.platform === 'win32' }, (err) => resolve(!err));
   });
 }
 
 let activeJob = null;
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
 const DEPLOY_TIMEOUT_MS = 2 * 60 * 1000;
+const SDK_INSTALL_TIMEOUT_MS = 12 * 60 * 1000;
 
 router.get('/check', async (req, res) => {
   const env = tizenEnv();
   const [tizenOk, sdbOk] = await Promise.all([commandExists('tizen', env), commandExists('sdb', env)]);
-  res.json({ ready: tizenOk && sdbOk, tizenOk, sdbOk, serverIp: detectServerIp(), busy: !!activeJob });
+  res.json({
+    ready: tizenOk && sdbOk,
+    tizenOk,
+    sdbOk,
+    canAutoInstallSdk: process.platform === 'win32' && fs.existsSync(INSTALLER_EXE),
+    serverIp: detectServerIp(),
+    busy: !!activeJob,
+  });
 });
 
-// Corre un comando externo (tizen/sdb) y manda cada línea de su salida por
-// WebSocket a medida que llega, en vez de esperar a que termine todo.
-function runStep(cmd, args, env, { ignoreError = false } = {}) {
+// Corre un comando externo y manda cada línea de su salida por WebSocket a
+// medida que llega, en vez de esperar a que termine todo. shell:true es
+// necesario en Windows: "tizen" (y cualquier instalador .exe invocado con
+// argumentos) no se puede ejecutar de forma confiable con spawn() sin pasar
+// por una shell — el mismo problema que tenía "npm.cmd" en el actualizador.
+function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log' } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { env });
+    const child = spawn(cmd, args, { env, shell: process.platform === 'win32' });
     activeJob = child;
 
     const forward = (data) => {
@@ -50,7 +66,7 @@ function runStep(cmd, args, env, { ignoreError = false } = {}) {
         .toString()
         .split('\n')
         .filter((line) => line.trim())
-        .forEach((line) => broadcast('tizen:log', { line }));
+        .forEach((line) => broadcast(logEvent, { line }));
     };
     child.stdout.on('data', forward);
     child.stderr.on('data', forward);
@@ -146,6 +162,71 @@ router.post('/deploy', (req, res) => {
       clearTimeout(timeoutId);
       broadcast('tizen:log', { line: `Error: ${err.message}` });
       broadcast('tizen:done', { success: false, code: -1 });
+      activeJob = null;
+    });
+
+  res.status(202).json({ started: true });
+});
+
+// Instala el SDK de Tizen usando el instalador que ya viene adentro del
+// programa (tizen-studio-installer.exe) — nada que descargar ni buscar a
+// mano, todo desde el botón del panel.
+async function installSdk() {
+  if (process.platform !== 'win32') {
+    throw new Error('La instalación automática del SDK solo está disponible en Windows.');
+  }
+  if (!fs.existsSync(INSTALLER_EXE)) {
+    throw new Error('No se encontró el instalador del SDK junto al programa. Reinstala con la versión más reciente.');
+  }
+
+  const home = tizenHome();
+  broadcast('tizensdk:log', { line: '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...' });
+  await runStep(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], process.env, { logEvent: 'tizensdk:log' });
+
+  const tizenBin = path.join(home, 'tools', 'ide', 'bin', 'tizen.bat');
+  if (!fs.existsSync(tizenBin)) {
+    throw new Error('La instalación terminó pero no se encontró tizen.bat — revisa el registro de arriba.');
+  }
+
+  const env = tizenEnv();
+  broadcast('tizensdk:log', { line: '==> Creando el certificado de firma de la app...' });
+  await runStep('tizen', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL'], env, {
+    logEvent: 'tizensdk:log',
+  });
+  await runStep(
+    'tizen',
+    ['security-profiles', 'add', '-n', 'ebcorte', '-a', path.join(`${home}-data`, 'keystore', 'author', 'ebcorte.p12'), '-p', '0000'],
+    env,
+    { logEvent: 'tizensdk:log' }
+  );
+  await runStep('tizen', ['cli-config', `profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}`], env, {
+    logEvent: 'tizensdk:log',
+  });
+
+  broadcast('tizensdk:log', { line: '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.' });
+}
+
+router.post('/install-sdk', (req, res) => {
+  if (activeJob) return res.status(409).json({ error: 'Ya hay una instalación en curso' });
+  activeJob = true;
+
+  const timeoutId = setTimeout(() => {
+    if (activeJob && activeJob.kill) activeJob.kill();
+    broadcast('tizensdk:log', { line: `Instalación cancelada — tardó más de ${SDK_INSTALL_TIMEOUT_MS / 1000}s.` });
+    broadcast('tizensdk:done', { success: false });
+    activeJob = null;
+  }, SDK_INSTALL_TIMEOUT_MS);
+
+  installSdk()
+    .then(() => {
+      clearTimeout(timeoutId);
+      broadcast('tizensdk:done', { success: true });
+      activeJob = null;
+    })
+    .catch((err) => {
+      clearTimeout(timeoutId);
+      broadcast('tizensdk:log', { line: `Error: ${err.message}` });
+      broadcast('tizensdk:done', { success: false });
       activeJob = null;
     });
 

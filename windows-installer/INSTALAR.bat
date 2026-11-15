@@ -32,10 +32,12 @@ if %ERRORLEVEL% GEQ 8 (
   pause
   exit /b 1
 )
+if exist "%SRC%\platform-tools" robocopy "%SRC%\platform-tools" "%INSTALL_DIR%\platform-tools" /E /NFL /NDL /NJH /NJS /NC /NS >nul
 copy /y "%SRC%\start-hidden.vbs" "%INSTALL_DIR%\start-hidden.vbs" >nul
 copy /y "%SRC%\stop-server.vbs" "%INSTALL_DIR%\stop-server.vbs" >nul
 copy /y "%SRC%\reinstalar-dependencias.bat" "%INSTALL_DIR%\reinstalar-dependencias.bat" >nul
 copy /y "%SRC%\instalar-tizen-studio.bat" "%INSTALL_DIR%\instalar-tizen-studio.bat" >nul
+if exist "%SRC%\tizen-studio-installer.exe" copy /y "%SRC%\tizen-studio-installer.exe" "%INSTALL_DIR%\tizen-studio-installer.exe" >nul
 copy /y "%SRC%\DESINSTALAR.bat" "%INSTALL_DIR%\DESINSTALAR.bat" >nul
 copy /y "%SRC%\app.ico" "%INSTALL_DIR%\app.ico" >nul
 
