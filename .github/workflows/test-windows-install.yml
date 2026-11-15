@@ -164,15 +164,19 @@ jobs:
           # a que "tizen"/"sdb" respondan: install-sdk sigue corriendo despues de eso
           # (crea el certificado de firma), y romper antes deja al siguiente chequeo
           # (el .p12) corriendo en una carrera contra ese paso todavia en curso.
+          # El servidor se da por vencido solo a los 25 min (SDK_INSTALL_TIMEOUT_MS
+          # en tizen.js) — este loop tiene que esperar MAS que eso, si no corta la
+          # espera antes de que el servidor mismo termine y el test falla aunque
+          # la instalacion siga perfectamente en curso. 350 x 5s = ~29 min.
           $finished = $false
-          for ($i = 0; $i -lt 90; $i++) {
+          for ($i = 0; $i -lt 350; $i++) {
             try {
               $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
               if (-not $status.busy) { $finished = $true; break }
             } catch {}
             Start-Sleep -Seconds 5
           }
-          if (-not $finished) { throw "install-sdk no termino despues de varios minutos" }
+          if (-not $finished) { throw "install-sdk no termino despues de ~29 minutos" }
 
           $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
           if (-not $status.ready) { throw "install-sdk termino pero tizen/sdb no quedaron listos" }
