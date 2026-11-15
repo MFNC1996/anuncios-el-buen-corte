@@ -32,7 +32,7 @@
 
   function headerTitleFor(slide) {
     if (FIXED_TITLES[slide.template_key]) return FIXED_TITLES[slide.template_key];
-    if (slide.template_key === 'portada' || slide.template_key === 'destacado') return null;
+    if (slide.template_key === 'portada' || slide.template_key === 'destacado' || slide.template_key === 'imagen') return null;
     const category = state.categoriesById[slide.category_id];
     return category ? category.name : null;
   }
@@ -160,6 +160,14 @@
       </div>`;
   }
 
+  function renderImagenLibre(slide) {
+    if (!slide.photo_path) return emptyStateHtml('Sube una imagen para este cartel desde el panel');
+    return `
+      <div class="board board--imagen">
+        <img class="imagen-libre-photo" src="${escapeHtml(slide.photo_path)}" alt="" />
+      </div>`;
+  }
+
   function renderPortada() {
     return `
       <div class="board board--portada">
@@ -175,6 +183,7 @@
     if (slide.template_key === 'redes') return renderRedes();
     if (slide.template_key === 'horario') return renderHorario();
     if (slide.template_key === 'qr') return renderQr();
+    if (slide.template_key === 'imagen') return renderImagenLibre(slide);
     if (slide.template_key === 'portada' || !slide.category_id) return renderPortada();
     const category = state.categoriesById[slide.category_id];
     if (!category) return renderPortada();

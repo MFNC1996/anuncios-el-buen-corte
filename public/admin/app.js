@@ -7,6 +7,7 @@
     horario: 'Horario de atención',
     redes: 'Síguenos en redes',
     qr: 'QR WhatsApp',
+    imagen: 'Imagen personalizada',
   };
   const FIXED_CONTENT_KEYS = Object.keys(FIXED_CONTENT_LABELS);
 
@@ -297,6 +298,14 @@
           <input type="number" min="2" class="duration-input" value="${slide.duration_seconds}" data-action="slide-duration" data-slide-id="${slide.id}" />
         </label>
 
+        ${
+          slide.template_key === 'imagen'
+            ? `<label class="slide-photo-field">Imagen (${slide.photo_path ? 'ya tiene una' : 'sin subir'})
+                <input type="file" accept="image/png,image/jpeg,image/webp" data-action="slide-photo" data-slide-id="${slide.id}" />
+              </label>`
+            : ''
+        }
+
         <div class="row-actions">
           <button class="btn-icon" data-action="move-slide-up" data-slide-id="${slide.id}">↑</button>
           <button class="btn-icon" data-action="move-slide-down" data-slide-id="${slide.id}">↓</button>
@@ -324,6 +333,15 @@
         await api('PUT', `/api/playlists/slides/${slideId}`, { animation_key: target.value });
       } else if (action === 'slide-duration') {
         await api('PUT', `/api/playlists/slides/${slideId}`, { duration_seconds: Number(target.value) });
+      } else if (action === 'slide-photo') {
+        const file = target.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('photo', file);
+        const res = await fetch(`/api/uploads/slide/${slideId}`, { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo subir la imagen');
+        await loadAll();
       }
       showToast('Cartelera actualizada');
     } catch (err) {

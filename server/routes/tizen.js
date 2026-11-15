@@ -32,7 +32,7 @@ function commandExists(cmd, env) {
 
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
 const DEPLOY_TIMEOUT_MS = 2 * 60 * 1000;
-const SDK_INSTALL_TIMEOUT_MS = 12 * 60 * 1000;
+const SDK_INSTALL_TIMEOUT_MS = 25 * 60 * 1000;
 const DEPLOY_LABEL = 'tizen-deploy';
 const SDK_LABEL = 'tizen-install-sdk';
 

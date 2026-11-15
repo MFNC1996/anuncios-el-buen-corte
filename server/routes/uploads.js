@@ -73,6 +73,19 @@ router.post('/background', upload.single('photo'), (req, res) => {
   res.json({ background_image_path: imagePath });
 });
 
+router.post('/slide/:id', upload.single('photo'), (req, res) => {
+  const existing = db.prepare('SELECT * FROM playlist_slides WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Cartel no encontrado' });
+  if (!req.file) return res.status(400).json({ error: 'Falta el archivo photo' });
+
+  const photoPath = `/uploads/${req.file.filename}`;
+  db.prepare('UPDATE playlist_slides SET photo_path = ? WHERE id = ?').run(photoPath, req.params.id);
+  removeUploadedFile(existing.photo_path);
+
+  broadcast('playlist:changed', { playlist_id: existing.playlist_id });
+  res.json(db.prepare('SELECT * FROM playlist_slides WHERE id = ?').get(req.params.id));
+});
+
 router.delete('/background', (req, res) => {
   const existing = db.prepare('SELECT * FROM business_info WHERE id = 1').get();
   db.prepare('UPDATE business_info SET background_image_path = NULL WHERE id = 1').run();

@@ -79,6 +79,11 @@ const businessInfoColumns = new Set(db.prepare('PRAGMA table_info(business_info)
   if (!businessInfoColumns.has(column)) db.exec(`ALTER TABLE business_info ADD COLUMN ${def}`);
 });
 
+const playlistSlidesColumns = new Set(db.prepare('PRAGMA table_info(playlist_slides)').all().map((c) => c.name));
+[['photo_path', 'photo_path TEXT']].forEach(([column, def]) => {
+  if (!playlistSlidesColumns.has(column)) db.exec(`ALTER TABLE playlist_slides ADD COLUMN ${def}`);
+});
+
 function seedIfEmpty() {
   const categoryCount = db.prepare('SELECT COUNT(*) AS c FROM categories').get().c;
   if (categoryCount > 0) return;
