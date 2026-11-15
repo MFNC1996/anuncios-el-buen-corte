@@ -683,3 +683,75 @@ main {
 .readiness-dot.fail {
   background: var(--ebc-red);
 }
+
+/* ---- Pantallas: perfiles y lienzo de arrastre ---- */
+.profile-card {
+  margin-bottom: 1.5rem;
+}
+.profile-card__header select {
+  flex: 0 0 auto;
+}
+.screens-canvas {
+  position: relative;
+  min-height: 220px;
+  margin: 1rem;
+  background: repeating-linear-gradient(
+      0deg,
+      var(--ebc-border) 0,
+      var(--ebc-border) 1px,
+      transparent 1px,
+      transparent 96px
+    ),
+    repeating-linear-gradient(90deg, var(--ebc-border) 0, var(--ebc-border) 1px, transparent 1px, transparent 96px);
+  background-color: var(--ebc-paper);
+  border-radius: 8px;
+  border: 1px dashed var(--ebc-border);
+}
+.screen-box {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  background: var(--ebc-surface);
+  border: 2px solid var(--ebc-green);
+  border-radius: 8px;
+  box-shadow: var(--ebc-shadow);
+  padding: 0.4rem;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  overflow: hidden;
+}
+.screen-box:active {
+  cursor: grabbing;
+}
+.screen-box__name {
+  font-weight: 700;
+  color: var(--ebc-red);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.screen-box__url {
+  color: var(--ebc-ink-soft);
+  font-size: 0.65rem;
+}
+.screen-box__actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.screen-box__actions button {
+  font-size: 0.65rem;
+  border: none;
+  background: none;
+  color: var(--ebc-green);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.screen-box__actions button.danger {
+  color: var(--ebc-red);
+}

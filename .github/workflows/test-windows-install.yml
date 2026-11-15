@@ -15,7 +15,7 @@ on:
 jobs:
   test:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
 
@@ -164,26 +164,38 @@ jobs:
           # a que "tizen"/"sdb" respondan: install-sdk sigue corriendo despues de eso
           # (crea el certificado de firma), y romper antes deja al siguiente chequeo
           # (el .p12) corriendo en una carrera contra ese paso todavia en curso.
-          # El servidor se da por vencido solo a los 25 min (SDK_INSTALL_TIMEOUT_MS
-          # en tizen.js) — este loop tiene que esperar MAS que eso, si no corta la
-          # espera antes de que el servidor mismo termine y el test falla aunque
-          # la instalacion siga perfectamente en curso. 350 x 5s = ~29 min.
+          # El servidor se da por vencido solo a los 40 min (SDK_INSTALL_TIMEOUT_MS
+          # en tizen.js, subido de 12 a 25 a 40 porque las dos veces anteriores el
+          # SDK de Tizen tardo mas de lo esperado bajando paquetes en este runner) —
+          # este loop tiene que esperar MAS que eso. 550 x 5s = ~46 min.
           $finished = $false
-          for ($i = 0; $i -lt 350; $i++) {
+          for ($i = 0; $i -lt 550; $i++) {
             try {
               $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
               if (-not $status.busy) { $finished = $true; break }
             } catch {}
             Start-Sleep -Seconds 5
           }
-          if (-not $finished) { throw "install-sdk no termino despues de ~29 minutos" }
+          if (-not $finished) {
+            Write-Host "---- server\data\tizen.log ----"
+            Get-Content "$env:LOCALAPPDATA\CarteleraElBuenCorte\server\data\tizen.log" -ErrorAction SilentlyContinue | Write-Host
+            throw "install-sdk no termino despues de ~46 minutos"
+          }
 
           $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
-          if (-not $status.ready) { throw "install-sdk termino pero tizen/sdb no quedaron listos" }
+          if (-not $status.ready) {
+            Write-Host "---- server\data\tizen.log ----"
+            Get-Content "$env:LOCALAPPDATA\CarteleraElBuenCorte\server\data\tizen.log" -ErrorAction SilentlyContinue | Write-Host
+            throw "install-sdk termino pero tizen/sdb no quedaron listos"
+          }
           Write-Host "OK: SDK de Tizen instalado y detectado por /api/tizen/check"
 
           $certPath = "$env:USERPROFILE\tizen-studio-data\keystore\author\ebcorte.p12"
-          if (-not (Test-Path $certPath)) { throw "No se creo el certificado de firma esperado: $certPath" }
+          if (-not (Test-Path $certPath)) {
+            Write-Host "---- server\data\tizen.log ----"
+            Get-Content "$env:LOCALAPPDATA\CarteleraElBuenCorte\server\data\tizen.log" -ErrorAction SilentlyContinue | Write-Host
+            throw "No se creo el certificado de firma esperado: $certPath"
+          }
           Write-Host "OK: certificado de firma creado"
 
       - name: Preparar una version "vieja" para probar el actualizador
@@ -267,5 +279,7 @@ jobs:
           $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
           Write-Host "---- server\data\update.log ----"
           Get-Content "$installDir\server\data\update.log" -ErrorAction SilentlyContinue | Write-Host
+          Write-Host "---- server\data\tizen.log ----"
+          Get-Content "$installDir\server\data\tizen.log" -ErrorAction SilentlyContinue | Write-Host
           Write-Host "---- Contenido de $installDir ----"
           if (Test-Path $installDir) { Get-ChildItem -Recurse $installDir | Select-Object FullName | Out-String | Write-Host }

@@ -15,12 +15,13 @@
       <h1>Panel de Cartelera</h1>
       <p>Carnicería El Buen Corte — Loncoche</p>
     </div>
-    <a class="btn btn-outline" href="/player/1" target="_blank" rel="noopener">Ver pantalla en vivo ↗</a>
+    <a id="live-player-link" class="btn btn-outline" href="/player/1" target="_blank" rel="noopener">Ver pantalla en vivo ↗</a>
   </header>
 
   <nav class="tabs">
     <button class="tab-btn is-active" data-tab="productos">Productos</button>
     <button class="tab-btn" data-tab="playlist">Orden en pantalla</button>
+    <button class="tab-btn" data-tab="pantallas">Pantallas</button>
     <button class="tab-btn" data-tab="local">Datos del local</button>
     <button class="tab-btn" data-tab="tv">TV</button>
     <button class="tab-btn" data-tab="sistema">Software</button>
@@ -37,9 +38,20 @@
 
     <section id="view-playlist" class="view" hidden>
       <p class="hint">Este es el orden en que los carteles van pasando en la TV. Cada tarjeta es una pantalla
-        (slide): elige qué categoría muestra, con qué plantilla, qué animación y cuántos segundos dura.</p>
+        (slide): elige qué categoría muestra, con qué plantilla, qué animación y cuántos segundos dura.
+        <strong id="playlist-editing-hint"></strong></p>
       <div id="slides-list" class="slides-list"></div>
       <button id="add-slide" type="button" class="btn btn-primary">+ Agregar cartel</button>
+    </section>
+
+    <section id="view-pantallas" class="view" hidden>
+      <p class="hint">Organiza tus TVs en perfiles — ej. "Caja", "Exhibición", "Afuera". Cada perfil tiene su
+        propio contenido, nunca se mezcla con el de otro perfil. Arrastra las pantallas dentro de su perfil
+        para acomodarlas (sirve sobre todo para el modo mosaico, donde varias TVs juntas muestran una sola
+        imagen grande repartida entre ellas).</p>
+
+      <div id="profiles-list"></div>
+      <button id="add-profile" type="button" class="btn btn-primary">+ Nuevo perfil</button>
     </section>
 
     <section id="view-local" class="view" hidden>
@@ -123,6 +135,9 @@
           <div class="category-card">
             <div class="category-card__header"><strong>IP de la TV</strong></div>
             <div class="local-form">
+              <label>Pantalla a conectar
+                <select id="android-screen-select"></select>
+              </label>
               <label>IP de la TV
                 <input type="text" id="android-tv-ip" placeholder="192.168.1.42" />
               </label>
@@ -183,6 +198,9 @@
           <div class="category-card">
             <div class="category-card__header"><strong>Datos de la instalación</strong></div>
             <div class="local-form">
+              <label>Pantalla a conectar
+                <select id="tizen-screen-select"></select>
+              </label>
               <label>IP de la TV
                 <input type="text" id="tizen-tv-ip" placeholder="192.168.1.42" />
               </label>

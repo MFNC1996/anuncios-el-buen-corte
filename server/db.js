@@ -45,11 +45,18 @@ db.exec(`
     duration_seconds INTEGER NOT NULL DEFAULT 8
   );
 
+  CREATE TABLE IF NOT EXISTS profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'independent',
+    mosaic_image_path TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS screens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     active_playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
-    group_id INTEGER,
+    profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
     position_row INTEGER,
     position_col INTEGER
   );
@@ -83,6 +90,16 @@ const playlistSlidesColumns = new Set(db.prepare('PRAGMA table_info(playlist_sli
 [['photo_path', 'photo_path TEXT']].forEach(([column, def]) => {
   if (!playlistSlidesColumns.has(column)) db.exec(`ALTER TABLE playlist_slides ADD COLUMN ${def}`);
 });
+
+// screens.group_id era el nombre original (reservado desde la Fase 1, siempre
+// NULL hasta ahora). Al ponerlo a usar de verdad para los "perfiles" se
+// renombra a profile_id para que el código no tenga dos nombres distintos
+// para lo mismo — en una base ya existente con la columna vieja, se renombra
+// en vez de perder los datos (igual todas valían NULL, pero por si acaso).
+const screensColumns = new Set(db.prepare('PRAGMA table_info(screens)').all().map((c) => c.name));
+if (screensColumns.has('group_id') && !screensColumns.has('profile_id')) {
+  db.exec('ALTER TABLE screens RENAME COLUMN group_id TO profile_id');
+}
 
 function seedIfEmpty() {
   const categoryCount = db.prepare('SELECT COUNT(*) AS c FROM categories').get().c;
@@ -153,6 +170,21 @@ function seedIfEmpty() {
   ).run('@elbuencorteloncoche', 'Carnicería El Buen Corte', '', '', defaultHours);
 }
 
+// Compatibilidad hacia atrás: un local con 1 sola pantalla no debe notar que
+// existen "perfiles" — si no hay ninguno todavía, se crea uno por defecto
+// ("Principal", modo independiente) y se le asigna cualquier pantalla que
+// haya quedado sin perfil (today, siempre la única que exista).
+function ensureDefaultProfile() {
+  const profileCount = db.prepare('SELECT COUNT(*) AS c FROM profiles').get().c;
+  const defaultProfileId =
+    profileCount > 0
+      ? db.prepare('SELECT id FROM profiles ORDER BY id LIMIT 1').get().id
+      : db.prepare("INSERT INTO profiles (name, mode) VALUES ('Principal', 'independent')").run().lastInsertRowid;
+
+  db.prepare('UPDATE screens SET profile_id = ? WHERE profile_id IS NULL').run(defaultProfileId);
+}
+
 seedIfEmpty();
+ensureDefaultProfile();
 
 module.exports = db;

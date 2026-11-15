@@ -98,7 +98,8 @@ router.post('/deploy', (req, res) => {
   if (!serverIp || !IPV4_RE.test(serverIp)) return res.status(400).json({ error: 'La IP del servidor no es válida' });
   if (!adbAvailable()) return res.status(409).json({ error: 'No se encontraron las herramientas de Android en este PC' });
 
-  const playerUrl = `http://${serverIp}:4010/player/1`;
+  const screenId = req.body.screenId || 1; // 1 = la única pantalla que existía antes de haber perfiles
+  const playerUrl = `http://${serverIp}:4010/player/${screenId}`;
   broadcast('android:log', { line: `Conectando con ${tvIp}...` });
   const started = runTrackedJob({
     label: 'android-deploy',

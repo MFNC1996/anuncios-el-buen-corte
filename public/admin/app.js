@@ -17,6 +17,7 @@
     playlistId: null,
     slides: [],
     settings: null,
+    selectedScreenId: SCREEN_ID,
   };
 
   const categoriesList = document.getElementById('categories-list');
@@ -55,8 +56,11 @@
       document.querySelectorAll('.view').forEach((v) => (v.hidden = true));
       document.getElementById(`view-${btn.dataset.tab}`).hidden = false;
       if (btn.dataset.tab === 'tv') {
+        populateScreenSelects();
         checkTizenReadiness();
         checkAndroidReadiness();
+      } else if (btn.dataset.tab === 'pantallas') {
+        loadProfiles();
       }
     });
   });
@@ -77,12 +81,18 @@
     Object.values(state.itemsByCategory).forEach((list) => list.sort((a, b) => a.order_index - b.order_index));
     state.settings = settings;
 
-    const screen = await api('GET', `/api/screens/${SCREEN_ID}`);
+    const screen = await api('GET', `/api/screens/${state.selectedScreenId}`);
     state.playlistId = screen.active_playlist_id;
+    state.slides = [];
     if (state.playlistId) {
       const playlist = await api('GET', `/api/playlists/${state.playlistId}`);
       state.slides = playlist.slides || [];
     }
+
+    const liveLink = document.getElementById('live-player-link');
+    if (liveLink) liveLink.href = `/player/${state.selectedScreenId}`;
+    const playlistHint = document.getElementById('playlist-editing-hint');
+    if (playlistHint) playlistHint.textContent = screen.name ? `Editando: ${screen.name}` : '';
 
     renderCategories();
     renderSlides();
@@ -389,6 +399,169 @@
     }
   });
 
+  // ---------------- Pantallas (perfiles, mosaico, arrastrar y acomodar) ----------------
+  const profilesList = document.getElementById('profiles-list');
+  const MODE_LABELS = { independent: 'Independiente', mosaic: 'Mosaico (una imagen repartida)' };
+  let profilesState = [];
+
+  async function loadProfiles() {
+    try {
+      profilesState = await api('GET', '/api/profiles');
+      renderProfiles();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  }
+
+  function screenBoxHtml(screen, mode) {
+    const left = (screen.position_col ?? 0) * 96;
+    const top = (screen.position_row ?? 0) * 96;
+    return `
+      <div class="screen-box" draggable="true" data-screen-id="${screen.id}" style="left:${left}px; top:${top}px;">
+        <div class="screen-box__name" title="${escapeHtml(screen.name)}">${escapeHtml(screen.name)}</div>
+        <div class="screen-box__url">/player/${screen.id}</div>
+        <div class="screen-box__actions">
+          ${
+            mode === 'independent'
+              ? `<button type="button" data-action="edit-screen-playlist" data-screen-id="${screen.id}">Editar cola</button>`
+              : ''
+          }
+          <button type="button" class="danger" data-action="delete-screen" data-screen-id="${screen.id}">Eliminar</button>
+        </div>
+      </div>`;
+  }
+
+  function profileCardHtml(profile) {
+    const screensHtml = (profile.screens || []).map((s) => screenBoxHtml(s, profile.mode)).join('');
+    const modeOptions = Object.keys(MODE_LABELS)
+      .map((key) => `<option value="${key}" ${profile.mode === key ? 'selected' : ''}>${MODE_LABELS[key]}</option>`)
+      .join('');
+
+    const mosaicUpload =
+      profile.mode === 'mosaic'
+        ? `<div class="category-card">
+            <div class="category-card__header"><strong>Imagen del mosaico</strong></div>
+            <div class="background-preview" style="${
+              profile.mosaic_image_path ? `background-image:url('${profile.mosaic_image_path}')` : ''
+            }">${profile.mosaic_image_path ? '' : 'Sin imagen'}</div>
+            <input type="file" accept="image/png,image/jpeg,image/webp" data-action="upload-mosaic" data-profile-id="${profile.id}" />
+          </div>`
+        : '';
+
+    return `
+      <div class="category-card profile-card" data-profile-id="${profile.id}">
+        <div class="category-card__header profile-card__header">
+          <input type="text" class="profile-name-input" value="${escapeHtml(profile.name)}" data-action="profile-rename" data-profile-id="${profile.id}" />
+          <select data-action="profile-mode" data-profile-id="${profile.id}">${modeOptions}</select>
+          <button type="button" class="btn-icon danger" data-action="delete-profile" data-profile-id="${profile.id}">🗑 Eliminar perfil</button>
+        </div>
+        ${mosaicUpload}
+        <div class="screens-canvas" data-profile-id="${profile.id}">${screensHtml}</div>
+        <button type="button" class="btn-icon" data-action="add-screen" data-profile-id="${profile.id}">+ Nueva pantalla</button>
+      </div>`;
+  }
+
+  function wireScreenDragAndDrop() {
+    document.querySelectorAll('.screen-box').forEach((box) => {
+      box.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', box.dataset.screenId);
+      });
+    });
+    document.querySelectorAll('.screens-canvas').forEach((canvas) => {
+      canvas.addEventListener('dragover', (e) => e.preventDefault());
+      canvas.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const screenId = e.dataTransfer.getData('text/plain');
+        if (!screenId) return;
+        const rect = canvas.getBoundingClientRect();
+        const cellSize = 96;
+        const col = Math.max(0, Math.round((e.clientX - rect.left - 40) / cellSize));
+        const row = Math.max(0, Math.round((e.clientY - rect.top - 40) / cellSize));
+        try {
+          await api('PUT', `/api/screens/${screenId}`, { position_row: row, position_col: col });
+          await loadProfiles();
+        } catch (err) {
+          showToast(err.message, true);
+        }
+      });
+    });
+  }
+
+  function renderProfiles() {
+    profilesList.innerHTML = profilesState.map(profileCardHtml).join('');
+    wireScreenDragAndDrop();
+  }
+
+  profilesList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const { action } = btn.dataset;
+    try {
+      if (action === 'delete-profile') {
+        if (!confirm('¿Eliminar este perfil? (tiene que no tener pantallas asignadas)')) return;
+        await api('DELETE', `/api/profiles/${btn.dataset.profileId}`);
+        await loadProfiles();
+      } else if (action === 'add-screen') {
+        const name = prompt('Nombre de la nueva pantalla (ej. "TV Caja 2"):');
+        if (!name || !name.trim()) return;
+        await api('POST', '/api/screens', { name: name.trim(), profile_id: Number(btn.dataset.profileId) });
+        await loadProfiles();
+        await populateScreenSelects();
+      } else if (action === 'delete-screen') {
+        if (!confirm('¿Eliminar esta pantalla? Se borra también su cola de carteles.')) return;
+        await api('DELETE', `/api/screens/${btn.dataset.screenId}`);
+        await loadProfiles();
+        await populateScreenSelects();
+      } else if (action === 'edit-screen-playlist') {
+        state.selectedScreenId = Number(btn.dataset.screenId);
+        await loadAll();
+        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('is-active'));
+        document.querySelector('.tab-btn[data-tab="playlist"]').classList.add('is-active');
+        document.querySelectorAll('.view').forEach((v) => (v.hidden = true));
+        document.getElementById('view-playlist').hidden = false;
+        return;
+      }
+      showToast('Listo');
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  });
+
+  profilesList.addEventListener('change', async (e) => {
+    const target = e.target;
+    const { action } = target.dataset;
+    try {
+      if (action === 'profile-mode') {
+        await api('PUT', `/api/profiles/${target.dataset.profileId}`, { mode: target.value });
+        await loadProfiles();
+      } else if (action === 'profile-rename') {
+        await api('PUT', `/api/profiles/${target.dataset.profileId}`, { name: target.value });
+      } else if (action === 'upload-mosaic') {
+        const file = target.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('photo', file);
+        const res = await fetch(`/api/uploads/profile/${target.dataset.profileId}`, { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo subir la imagen');
+        await loadProfiles();
+      }
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  });
+
+  document.getElementById('add-profile').addEventListener('click', async () => {
+    const name = prompt('Nombre del nuevo perfil (ej. "Exhibición", "Caja", "Afuera"):');
+    if (!name || !name.trim()) return;
+    try {
+      await api('POST', '/api/profiles', { name: name.trim() });
+      await loadProfiles();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  });
+
   // ---------------- Datos del local ----------------
   const hoursEditor = document.getElementById('hours-editor');
   const localInstagram = document.getElementById('local-instagram');
@@ -572,6 +745,7 @@
   // ---------------- Instalar en TV Samsung (Tizen) ----------------
   const tizenReadinessBody = document.getElementById('tizen-readiness-body');
   const tizenInstallSdkBtn = document.getElementById('tizen-install-sdk');
+  const tizenScreenSelect = document.getElementById('tizen-screen-select');
   const tizenTvIpInput = document.getElementById('tizen-tv-ip');
   const tizenServerIpInput = document.getElementById('tizen-server-ip');
   const tizenDeployBtn = document.getElementById('tizen-deploy');
@@ -660,7 +834,7 @@
     tizenLog.textContent = '';
     tizenDeployBtn.disabled = true;
     try {
-      await api('POST', '/api/tizen/deploy', { tvIp, serverIp });
+      await api('POST', '/api/tizen/deploy', { tvIp, serverIp, screenId: Number(tizenScreenSelect.value) || 1 });
     } catch (err) {
       showToast(err.message, true);
       tizenDeployBtn.disabled = false;
@@ -698,6 +872,7 @@
 
   // ---------------- Instalar en TV Android / Google TV / Fire TV Stick ----------------
   const androidReadinessBody = document.getElementById('android-readiness-body');
+  const androidScreenSelect = document.getElementById('android-screen-select');
   const androidTvIpInput = document.getElementById('android-tv-ip');
   const androidDeployBtn = document.getElementById('android-deploy');
   const androidOpenStoreBtn = document.getElementById('android-open-store');
@@ -707,6 +882,22 @@
   const androidInstallApkBtn = document.getElementById('android-install-apk');
   const androidLog = document.getElementById('android-log');
   let androidServerIp = '';
+
+  async function populateScreenSelects() {
+    try {
+      const screens = await api('GET', '/api/screens');
+      const options = screens
+        .map((s) => `<option value="${s.id}">${escapeHtml(s.name)} (pantalla ${s.id})</option>`)
+        .join('');
+      [tizenScreenSelect, androidScreenSelect].forEach((select) => {
+        const previous = select.value;
+        select.innerHTML = options;
+        if (screens.some((s) => String(s.id) === previous)) select.value = previous;
+      });
+    } catch (err) {
+      // si falla, se queda vacio — los deploys igual funcionan asumiendo pantalla 1 si no se eligio nada
+    }
+  }
 
   function appendAndroidLog(line) {
     if (androidLog.textContent === 'Esperando...') androidLog.textContent = '';
@@ -757,7 +948,11 @@
     androidLog.textContent = '';
     setAndroidBusy(true);
     try {
-      await api('POST', '/api/android/deploy', { tvIp, serverIp: androidServerIp });
+      await api('POST', '/api/android/deploy', {
+        tvIp,
+        serverIp: androidServerIp,
+        screenId: Number(androidScreenSelect.value) || 1,
+      });
     } catch (err) {
       showToast(err.message, true);
       setAndroidBusy(false);

@@ -249,6 +249,15 @@
   object-fit: contain;
 }
 
+/* ---------- Mosaico: varias pantallas juntas, cada una recorta su pedazo de
+   una imagen grande (background-size/position en px via player.js) ---------- */
+.board--mosaic-tile {
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-color: #000;
+}
+
 /* ---------- Redes sociales ---------- */
 .board--redes .redes-body {
   flex: 1;

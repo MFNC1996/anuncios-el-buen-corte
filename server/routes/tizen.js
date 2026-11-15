@@ -32,9 +32,25 @@ function commandExists(cmd, env) {
 
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
 const DEPLOY_TIMEOUT_MS = 2 * 60 * 1000;
-const SDK_INSTALL_TIMEOUT_MS = 25 * 60 * 1000;
+const SDK_INSTALL_TIMEOUT_MS = 40 * 60 * 1000;
 const DEPLOY_LABEL = 'tizen-deploy';
 const SDK_LABEL = 'tizen-install-sdk';
+
+const TIZEN_LOG_PATH = path.join(INSTALL_ROOT, 'server', 'data', 'tizen.log');
+
+// Deja cada paso en server/data/tizen.log además de mandarlo por WebSocket
+// (igual patrón que update.js) — si nadie tenía el panel abierto durante una
+// instalación larga (el SDK de Tizen puede tardar 20+ minutos bajando
+// paquetes), esto es la única forma de ver después qué pasó.
+function logLine(event, line) {
+  broadcast(event, { line });
+  try {
+    fs.mkdirSync(path.dirname(TIZEN_LOG_PATH), { recursive: true });
+    fs.appendFileSync(TIZEN_LOG_PATH, `[${new Date().toISOString()}] ${line}\n`);
+  } catch (err) {
+    // no hay mucho que hacer si ni el log se puede escribir
+  }
+}
 
 router.get('/check', async (req, res) => {
   const env = tizenEnv();
@@ -66,7 +82,7 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log', 
         .toString()
         .split('\n')
         .filter((line) => line.trim())
-        .forEach((line) => broadcast(logEvent, { line }));
+        .forEach((line) => logLine(logEvent, line));
     };
     child.stdout.on('data', forward);
     child.stderr.on('data', forward);
@@ -92,7 +108,7 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log', 
   });
 }
 
-async function deploy(tvIp, serverIp, cancelToken) {
+async function deploy(tvIp, serverIp, screenId, cancelToken) {
   const env = tizenEnv();
 
   fs.rmSync(BUILD_DIR, { recursive: true, force: true });
@@ -100,15 +116,15 @@ async function deploy(tvIp, serverIp, cancelToken) {
   fs.copyFileSync(path.join(TIZEN_APP_DIR, 'config.xml'), path.join(SRC_DIR, 'config.xml'));
   fs.copyFileSync(path.join(TIZEN_APP_DIR, 'icon.png'), path.join(SRC_DIR, 'icon.png'));
 
-  broadcast('tizen:log', { line: `==> Apuntando la app a http://${serverIp}:4010/player/1` });
+  logLine('tizen:log', `==> Apuntando la app a http://${serverIp}:4010/player/${screenId}`);
   const indexHtml = fs.readFileSync(path.join(TIZEN_APP_DIR, 'index.html'), 'utf8');
   const patchedHtml = indexHtml.replace(
     /var PLAYER_URL = '[^']*'/,
-    `var PLAYER_URL = 'http://${serverIp}:4010/player/1'`
+    `var PLAYER_URL = 'http://${serverIp}:4010/player/${screenId}'`
   );
   fs.writeFileSync(path.join(SRC_DIR, 'index.html'), patchedHtml);
 
-  broadcast('tizen:log', { line: `==> Conectando a la TV (${tvIp})...` });
+  logLine('tizen:log', `==> Conectando a la TV (${tvIp})...`);
   await runStep('sdb', ['connect', tvIp], env, { ignoreError: true, cancelToken });
   await runStep('sdb', ['connect', `${tvIp}:26101`], env, { ignoreError: true, cancelToken });
 
@@ -123,19 +139,19 @@ async function deploy(tvIp, serverIp, cancelToken) {
   if (!deviceId) {
     throw new Error('No se encontró la TV conectada. Revisa que Modo Desarrollador esté activo y la IP sea correcta.');
   }
-  broadcast('tizen:log', { line: `==> TV detectada: ${deviceId}` });
+  logLine('tizen:log', `==> TV detectada: ${deviceId}`);
 
-  broadcast('tizen:log', { line: '==> Empaquetando la app (.wgt)...' });
+  logLine('tizen:log', '==> Empaquetando la app (.wgt)...');
   await runStep('tizen', ['package', '-t', 'wgt', '-s', 'ebcorte', '-o', BUILD_DIR, '--', SRC_DIR], env, { cancelToken });
 
   const wgtFile = fs.readdirSync(BUILD_DIR).find((f) => f.endsWith('.wgt'));
   if (!wgtFile) throw new Error('No se generó el archivo .wgt esperado.');
   const wgtPath = path.join(BUILD_DIR, wgtFile);
 
-  broadcast('tizen:log', { line: `==> Instalando ${wgtFile} en la TV...` });
+  logLine('tizen:log', `==> Instalando ${wgtFile} en la TV...`);
   await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
 
-  broadcast('tizen:log', { line: "==> Listo. Busca 'Cartelera El Buen Corte' en el menú Apps de la TV y ábrela." });
+  logLine('tizen:log', "==> Listo. Busca 'Cartelera El Buen Corte' en el menú Apps de la TV y ábrela.");
 }
 
 // Corre `fn` bajo el candado global (jobLock), con un timeout que cancela
@@ -159,7 +175,7 @@ function runTrackedJob({ label, timeoutMs, doneEvent, logEvent, fn }) {
     if (settled) return;
     settled = true;
     clearTimeout(timeoutId);
-    if (errorLine) broadcast(logEvent, { line: errorLine });
+    if (errorLine) logLine(logEvent, errorLine);
     broadcast(doneEvent, { success });
     jobLock.release(label);
   }
@@ -173,18 +189,19 @@ function runTrackedJob({ label, timeoutMs, doneEvent, logEvent, fn }) {
 
 router.post('/deploy', (req, res) => {
   const { tvIp, serverIp } = req.body;
+  const screenId = req.body.screenId || 1; // 1 = la única pantalla que existía antes de haber perfiles
   if (!tvIp || !serverIp) return res.status(400).json({ error: 'Falta la IP de la TV o del servidor' });
   if (!IPV4_RE.test(tvIp) || !IPV4_RE.test(serverIp)) {
     return res.status(400).json({ error: 'La IP de la TV y del servidor deben ser direcciones IPv4 válidas' });
   }
 
-  broadcast('tizen:log', { line: `Instalando en ${tvIp} (servidor ${serverIp})...` });
+  logLine('tizen:log', `Instalando en ${tvIp} (servidor ${serverIp})...`);
   const started = runTrackedJob({
     label: DEPLOY_LABEL,
     timeoutMs: DEPLOY_TIMEOUT_MS,
     doneEvent: 'tizen:done',
     logEvent: 'tizen:log',
-    fn: (cancelToken) => deploy(tvIp, serverIp, cancelToken),
+    fn: (cancelToken) => deploy(tvIp, serverIp, screenId, cancelToken),
   });
 
   if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
@@ -203,7 +220,7 @@ async function installSdk(cancelToken) {
   }
 
   const home = tizenHome();
-  broadcast('tizensdk:log', { line: '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...' });
+  logLine('tizensdk:log', '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...');
   await runStep(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], process.env, {
     logEvent: 'tizensdk:log',
     cancelToken,
@@ -215,7 +232,7 @@ async function installSdk(cancelToken) {
   }
 
   const env = tizenEnv();
-  broadcast('tizensdk:log', { line: '==> Creando el certificado de firma de la app...' });
+  logLine('tizensdk:log', '==> Creando el certificado de firma de la app...');
   await runStep('tizen', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL'], env, {
     logEvent: 'tizensdk:log',
     cancelToken,
@@ -231,7 +248,7 @@ async function installSdk(cancelToken) {
     cancelToken,
   });
 
-  broadcast('tizensdk:log', { line: '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.' });
+  logLine('tizensdk:log', '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.');
 }
 
 router.post('/install-sdk', (req, res) => {

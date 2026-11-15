@@ -271,9 +271,45 @@
     applyBackground(settings);
   }
 
+  // Modo mosaico: varias pantallas puestas juntas muestran una sola imagen
+  // grande, cada una recortando el pedazo que le toca según su posición
+  // dentro del perfil. Técnica estándar de "video wall" en CSS: la imagen se
+  // agranda a (columnas x 100%, filas x 100%) del tamaño de esta pantalla, y
+  // se la corre con background-position para que cada una vea solo su parte.
+  async function renderMosaic(screen) {
+    clearTimeout(state.timer);
+    stageHeader.hidden = true;
+
+    const profile = await fetch(`/api/profiles/${screen.profile_id}`).then((r) => r.json());
+    if (!profile.mosaic_image_path) {
+      slideArea.innerHTML = emptyStateHtml('Sube la imagen del mosaico desde el panel (pestaña Pantallas)');
+      return;
+    }
+
+    const screens = profile.screens || [];
+    const rows = Math.max(1, ...screens.map((s) => (s.position_row ?? 0) + 1));
+    const cols = Math.max(1, ...screens.map((s) => (s.position_col ?? 0) + 1));
+    const row = screen.position_row ?? 0;
+    const col = screen.position_col ?? 0;
+
+    slideArea.innerHTML = '<div class="board board--mosaic-tile"></div>';
+    const tile = slideArea.querySelector('.board--mosaic-tile');
+    tile.style.backgroundImage = `url('${profile.mosaic_image_path}')`;
+    tile.style.backgroundSize = `${cols * 100}% ${rows * 100}%`;
+    tile.style.backgroundPosition = `${cols > 1 ? (col / (cols - 1)) * 100 : 0}% ${rows > 1 ? (row / (rows - 1)) * 100 : 0}%`;
+  }
+
   async function loadPlaylist({ keepIndex = false } = {}) {
     const screen = await fetch(`/api/screens/${screenId}`).then((r) => r.json());
-    if (!screen || !screen.active_playlist_id) {
+    if (!screen) return;
+    state.screen = screen;
+
+    if (screen.profile?.mode === 'mosaic') {
+      await renderMosaic(screen);
+      return;
+    }
+
+    if (!screen.active_playlist_id) {
       state.slides = [];
       stageHeader.hidden = true;
       slideArea.innerHTML = '<div class="board board--portada"><div class="portada-content"><p class="portada-sub">Sin playlist asignada</p></div></div>';
@@ -303,6 +339,11 @@
       } else if (msg.event === 'playlist:changed' && msg.payload?.playlist_id === state.playlistId) {
         await loadContent();
         await loadPlaylist({ keepIndex: false });
+      } else if (msg.event === 'profiles:changed') {
+        // Cambió algo de perfiles/pantallas (imagen de mosaico, arreglo,
+        // a qué perfil pertenece esta pantalla, etc.) — recargar por si
+        // afecta a esta pantalla en particular.
+        await loadPlaylist({ keepIndex: true });
       }
     });
 

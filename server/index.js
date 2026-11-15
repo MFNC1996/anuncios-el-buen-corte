@@ -16,6 +16,7 @@ const serverInfoRouter = require('./routes/server-info');
 const updateRouter = require('./routes/update');
 const androidRouter = require('./routes/android');
 const networkRouter = require('./routes/network');
+const profilesRouter = require('./routes/profiles');
 
 const app = express();
 const PORT = process.env.PORT || 4010;
@@ -33,6 +34,7 @@ app.use('/api/server-info', serverInfoRouter);
 app.use('/api/update', updateRouter);
 app.use('/api/android', androidRouter);
 app.use('/api/network', networkRouter);
+app.use('/api/profiles', profilesRouter);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/shared', express.static(path.join(__dirname, '..', 'public', 'shared')));
