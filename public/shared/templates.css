@@ -36,15 +36,20 @@
   flex: 0 0 auto;
   object-fit: contain;
   padding: 0.3vh;
-  animation: ebc-logo-spin 12s linear infinite;
+  animation: ebc-logo-spin 3s linear infinite;
 }
 
-/* Giro parejo y continuo, como una medalla — a diferencia del "giro" accidental
-   de antes, este vive en el logo fijo, nunca en un elemento que se anima/recorta
-   junto con el contenido, así que no hay superposición ni parpadeo. */
+/* Giro tipo moneda girando sobre una mesa: rota sobre su eje vertical (no
+   el giro plano de antes, que nunca mostraba un "canto" y se veía más como
+   un ventilador que como una moneda). El perspective() va adentro del mismo
+   transform (no en el padre) para no afectarle la perspectiva 3D a nada más
+   del encabezado/portada. Vive en el logo fijo, nunca en un elemento que se
+   anima/recorta junto con el contenido, así que no hay superposición ni
+   parpadeo con la transición del cartel.
+   */
 @keyframes ebc-logo-spin {
   to {
-    transform: rotate(360deg);
+    transform: perspective(60vh) rotateY(360deg);
   }
 }
 
@@ -378,7 +383,7 @@
   height: 26vh;
   object-fit: contain;
   margin-bottom: 2.5vh;
-  animation: ebc-logo-spin 12s linear infinite;
+  animation: ebc-logo-spin 3s linear infinite;
 }
 .portada-title {
   margin: 0;
