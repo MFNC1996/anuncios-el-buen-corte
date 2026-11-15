@@ -132,19 +132,22 @@ jobs:
         run: |
           Invoke-RestMethod -Method Post -Uri http://localhost:4010/api/tizen/install-sdk -TimeoutSec 5 | Out-Null
 
-          $ok = $false
+          # Hay que esperar a que el trabajo termine del todo (busy=false), no solo
+          # a que "tizen"/"sdb" respondan: install-sdk sigue corriendo despues de eso
+          # (crea el certificado de firma), y romper antes deja al siguiente chequeo
+          # (el .p12) corriendo en una carrera contra ese paso todavia en curso.
+          $finished = $false
           for ($i = 0; $i -lt 90; $i++) {
             try {
               $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
-              if ($status.ready) { $ok = $true; break }
-              if (-not $status.busy) {
-                # termino (bien o mal) pero no quedo "ready": no sigas esperando los 90 intentos
-                break
-              }
+              if (-not $status.busy) { $finished = $true; break }
             } catch {}
             Start-Sleep -Seconds 5
           }
-          if (-not $ok) { throw "La instalacion del SDK de Tizen no dejo tizen/sdb listos" }
+          if (-not $finished) { throw "install-sdk no termino despues de varios minutos" }
+
+          $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
+          if (-not $status.ready) { throw "install-sdk termino pero tizen/sdb no quedaron listos" }
           Write-Host "OK: SDK de Tizen instalado y detectado por /api/tizen/check"
 
           $certPath = "$env:USERPROFILE\tizen-studio-data\keystore\author\ebcorte.p12"
