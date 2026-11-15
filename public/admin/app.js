@@ -565,6 +565,20 @@
     return `<div class="readiness-row"><span class="readiness-dot ${ok ? 'ok' : 'fail'}"></span>${label}</div>`;
   }
 
+  const BUSY_LABELS = {
+    'tizen-deploy': 'instalando en una TV Samsung',
+    'tizen-install-sdk': 'instalando el SDK de Tizen',
+    'android-deploy': 'abriendo la cartelera en una TV Android',
+    'android-open-store': 'abriendo la Play Store en una TV',
+    'android-install-apk': 'instalando un .apk en una TV',
+    'update-apply': 'actualizando el software',
+  };
+
+  function busyMessage(busyWith) {
+    const what = BUSY_LABELS[busyWith] || 'otra operación';
+    return `Ya hay algo en curso ahora mismo: ${what}. Espera a que termine.`;
+  }
+
   async function checkTizenReadiness() {
     tizenReadinessBody.innerHTML = '<p>Comprobando...</p>';
     tizenInstallSdkBtn.hidden = true;
@@ -573,7 +587,7 @@
       tizenReadinessBody.innerHTML =
         readinessRow(status.tizenOk, 'Herramienta <code>tizen</code> encontrada') +
         readinessRow(status.sdbOk, 'Herramienta <code>sdb</code> encontrada') +
-        (status.busy ? readinessRow(false, 'Hay una instalación en curso ahora mismo') : '');
+        (status.busy ? readinessRow(false, busyMessage(status.busyWith)) : '');
       if (status.serverIp && !tizenServerIpInput.value) {
         tizenServerIpInput.value = status.serverIp;
       }
@@ -608,11 +622,13 @@
   tizenInstallSdkBtn.addEventListener('click', async () => {
     tizenLog.textContent = '';
     tizenInstallSdkBtn.disabled = true;
+    tizenDeployBtn.disabled = true;
     try {
       await api('POST', '/api/tizen/install-sdk');
     } catch (err) {
       showToast(err.message, true);
       tizenInstallSdkBtn.disabled = false;
+      tizenDeployBtn.disabled = false;
     }
   });
 

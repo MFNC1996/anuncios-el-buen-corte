@@ -1,35 +1,35 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { spawn } = require('child_process');
 const express = require('express');
 const multer = require('multer');
 const { broadcast } = require('../ws');
 const { detectServerIp } = require('../network-info');
+const { spawnSafe } = require('../spawn-safe');
+const jobLock = require('../job-lock');
 
 const router = express.Router();
 const INSTALL_ROOT = path.join(__dirname, '..', '..');
 const ADB_EXE = path.join(INSTALL_ROOT, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb');
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
-const DEPLOY_TIMEOUT_MS = 60 * 1000;
-
-let activeJob = null;
+const JOB_TIMEOUT_MS = 60 * 1000;
 
 function adbAvailable() {
   return fs.existsSync(ADB_EXE);
 }
 
 router.get('/check', (req, res) => {
-  res.json({ ready: adbAvailable(), serverIp: detectServerIp(), busy: !!activeJob });
+  res.json({ ready: adbAvailable(), serverIp: detectServerIp(), busy: jobLock.isBusy(), busyWith: jobLock.currentLabel() });
 });
 
-// shell:true porque en Windows adb.exe a veces queda bloqueado por el
-// antivirus/Defender al primer uso y conviene pasar por la shell del
-// sistema igual que con las demás herramientas externas de este proyecto.
-function runAdb(args) {
+// Corre un comando de adb y manda la salida por WebSocket a medida que
+// llega. Resuelve con {code, output} siempre que el proceso haya podido
+// correr — adb no siempre refleja el éxito real en su código de salida
+// (connect/am start suelen devolver 0 incluso cuando fallan), así que cada
+// caller decide si además necesita revisar el texto de salida.
+function runAdb(args, logEvent = 'android:log') {
   return new Promise((resolve, reject) => {
-    const child = spawn(ADB_EXE, args, { shell: process.platform === 'win32' });
-    activeJob = child;
+    const child = spawnSafe(ADB_EXE, args);
     let output = '';
     const forward = (data) => {
       output += data.toString();
@@ -37,13 +37,41 @@ function runAdb(args) {
         .toString()
         .split('\n')
         .filter((l) => l.trim())
-        .forEach((line) => broadcast('android:log', { line }));
+        .forEach((line) => broadcast(logEvent, { line }));
     };
     child.stdout.on('data', forward);
     child.stderr.on('data', forward);
     child.on('error', reject);
-    child.on('close', () => resolve({ output }));
+    child.on('close', (code) => resolve({ code, output }));
   });
+}
+
+// Corre `fn` bajo el candado global, con un timeout real (broadcast de
+// fallo + liberar el candado) si se cuelga — ej. un `adb connect` contra una
+// TV apagada o cuya wifi descarta el paquete en silencio en vez de
+// rechazarlo, que si no tendría a esta ruta "ocupada" para siempre.
+function runTrackedJob({ label, doneEvent, logEvent, fn }) {
+  if (!jobLock.tryAcquire(label)) return false;
+
+  let settled = false;
+  const timeoutId = setTimeout(() => {
+    finish(false, `Cancelado — tardó más de ${JOB_TIMEOUT_MS / 1000}s.`);
+  }, JOB_TIMEOUT_MS);
+
+  function finish(success, errorLine) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeoutId);
+    if (errorLine) broadcast(logEvent, { line: errorLine });
+    broadcast(doneEvent, { success });
+    jobLock.release(label);
+  }
+
+  fn()
+    .then((success = true) => finish(success))
+    .catch((err) => finish(false, `Error: ${err.message}`));
+
+  return true;
 }
 
 async function deploy(tvIp, playerUrl) {
@@ -57,7 +85,10 @@ async function deploy(tvIp, playerUrl) {
   }
 
   broadcast('android:log', { line: `==> Abriendo ${playerUrl} en la TV...` });
-  await runAdb(['-s', target, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', playerUrl]);
+  const start = await runAdb(['-s', target, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', playerUrl]);
+  if (start.code !== 0 || /error/i.test(start.output)) {
+    throw new Error('La TV no abrió la cartelera. Revisa que haya un navegador/Fully Kiosk instalado.');
+  }
   broadcast('android:log', { line: '==> Listo. Revisa la pantalla de la TV.' });
 }
 
@@ -66,32 +97,17 @@ router.post('/deploy', (req, res) => {
   if (!tvIp || !IPV4_RE.test(tvIp)) return res.status(400).json({ error: 'La IP de la TV no es válida' });
   if (!serverIp || !IPV4_RE.test(serverIp)) return res.status(400).json({ error: 'La IP del servidor no es válida' });
   if (!adbAvailable()) return res.status(409).json({ error: 'No se encontraron las herramientas de Android en este PC' });
-  if (activeJob) return res.status(409).json({ error: 'Ya hay una operación en curso' });
 
   const playerUrl = `http://${serverIp}:4010/player/1`;
-  activeJob = true;
   broadcast('android:log', { line: `Conectando con ${tvIp}...` });
+  const started = runTrackedJob({
+    label: 'android-deploy',
+    doneEvent: 'android:done',
+    logEvent: 'android:log',
+    fn: () => deploy(tvIp, playerUrl),
+  });
 
-  const timeoutId = setTimeout(() => {
-    if (activeJob && activeJob.kill) activeJob.kill();
-    broadcast('android:log', { line: `Operación cancelada — tardó más de ${DEPLOY_TIMEOUT_MS / 1000}s.` });
-    broadcast('android:done', { success: false });
-    activeJob = null;
-  }, DEPLOY_TIMEOUT_MS);
-
-  deploy(tvIp, playerUrl)
-    .then(() => {
-      clearTimeout(timeoutId);
-      broadcast('android:done', { success: true });
-      activeJob = null;
-    })
-    .catch((err) => {
-      clearTimeout(timeoutId);
-      broadcast('android:log', { line: `Error: ${err.message}` });
-      broadcast('android:done', { success: false });
-      activeJob = null;
-    });
-
+  if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
   res.status(202).json({ started: true });
 });
 
@@ -99,39 +115,42 @@ router.post('/deploy', (req, res) => {
 // Fire TV Stick, que no tiene Play Store — ahí se sigue instalando a mano
 // por ADB, como ya explica la guía). No instala nada por sí solo: solo deja
 // la pantalla de instalar lista para apretar "Instalar" con el control.
+async function openPlayStore(tvIp) {
+  const target = `${tvIp}:5555`;
+  const { output: connectOutput } = await runAdb(['connect', target]);
+  if (!/connected/i.test(connectOutput)) {
+    throw new Error('No se pudo conectar a la TV. Revisa la IP y que la depuración por red esté activada.');
+  }
+  const { output } = await runAdb([
+    '-s',
+    target,
+    'shell',
+    'am',
+    'start',
+    '-a',
+    'android.intent.action.VIEW',
+    '-d',
+    'market://details?id=de.ozerov.fully',
+  ]);
+  if (/error/i.test(output)) {
+    throw new Error('La TV no abrió la Play Store (¿es un Fire TV Stick? esos no tienen Play Store).');
+  }
+  broadcast('android:log', { line: '==> Abrí la Play Store en la TV. Aprieta "Instalar" con el control.' });
+}
+
 router.post('/open-play-store', (req, res) => {
   const { tvIp } = req.body;
   if (!tvIp || !IPV4_RE.test(tvIp)) return res.status(400).json({ error: 'La IP de la TV no es válida' });
   if (!adbAvailable()) return res.status(409).json({ error: 'No se encontraron las herramientas de Android en este PC' });
-  if (activeJob) return res.status(409).json({ error: 'Ya hay una operación en curso' });
 
-  const target = `${tvIp}:5555`;
-  activeJob = true;
-  runAdb(['connect', target])
-    .then(() =>
-      runAdb([
-        '-s',
-        target,
-        'shell',
-        'am',
-        'start',
-        '-a',
-        'android.intent.action.VIEW',
-        '-d',
-        'market://details?id=de.ozerov.fully',
-      ])
-    )
-    .then(() => {
-      broadcast('android:log', { line: '==> Abrí la Play Store en la TV. Aprieta "Instalar" con el control.' });
-      broadcast('android:done', { success: true });
-      activeJob = null;
-    })
-    .catch((err) => {
-      broadcast('android:log', { line: `Error: ${err.message}` });
-      broadcast('android:done', { success: false });
-      activeJob = null;
-    });
+  const started = runTrackedJob({
+    label: 'android-open-store',
+    doneEvent: 'android:done',
+    logEvent: 'android:log',
+    fn: () => openPlayStore(tvIp),
+  });
 
+  if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
   res.status(202).json({ started: true });
 });
 
@@ -160,33 +179,32 @@ router.post('/install-apk', apkUpload.single('apk'), (req, res) => {
     cleanup();
     return res.status(409).json({ error: 'No se encontraron las herramientas de Android en este PC' });
   }
-  if (activeJob) {
-    cleanup();
-    return res.status(409).json({ error: 'Ya hay una operación en curso' });
-  }
 
   const target = `${tvIp}:5555`;
-  activeJob = true;
-  broadcast('android:log', { line: `Instalando ${req.file.originalname} en ${tvIp}...` });
+  const apkName = req.file.originalname;
+  const apkPath = req.file.path;
+  broadcast('android:log', { line: `Instalando ${apkName} en ${tvIp}...` });
 
-  runAdb(['connect', target])
-    .then(() => runAdb(['-s', target, 'install', '-r', req.file.path]))
-    .then(({ output }) => {
+  const started = runTrackedJob({
+    label: 'android-install-apk',
+    doneEvent: 'android:done',
+    logEvent: 'android:log',
+    fn: async () => {
+      await runAdb(['connect', target]);
+      const { code, output } = await runAdb(['-s', target, 'install', '-r', apkPath]);
       cleanup();
-      const ok = /success/i.test(output);
+      const ok = code === 0 && /success/i.test(output);
       broadcast('android:log', {
         line: ok ? '==> Instalado correctamente.' : '==> La instalación no terminó en éxito, revisa el registro de arriba.',
       });
-      broadcast('android:done', { success: ok });
-      activeJob = null;
-    })
-    .catch((err) => {
-      cleanup();
-      broadcast('android:log', { line: `Error: ${err.message}` });
-      broadcast('android:done', { success: false });
-      activeJob = null;
-    });
+      return ok;
+    },
+  });
 
+  if (!started) {
+    cleanup();
+    return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
+  }
   res.status(202).json({ started: true });
 });
 

@@ -5,6 +5,8 @@ const { spawn } = require('child_process');
 const express = require('express');
 const AdmZip = require('adm-zip');
 const { broadcast } = require('../ws');
+const { spawnSafe } = require('../spawn-safe');
+const jobLock = require('../job-lock');
 
 const router = express.Router();
 
@@ -15,7 +17,8 @@ const REPO = require('../../package.json').repository || 'MFNC1996/anuncios-el-b
 // Nunca se tocan al actualizar: ahí viven los precios/fotos del local.
 const PRESERVE_PATHS = ['server/data', 'server/uploads'];
 
-let activeJob = false;
+const UPDATE_LABEL = 'update-apply';
+const NPM_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 
 function currentVersion() {
   return require('../../package.json').version;
@@ -67,7 +70,8 @@ router.get('/check', async (req, res) => {
       latestVersion,
       updateAvailable: Boolean(asset) && compareVersions(latestVersion, currentVersion()) > 0,
       notes,
-      busy: activeJob,
+      busy: jobLock.isBusy(),
+      busyWith: jobLock.currentLabel(),
     });
   } catch (err) {
     res.status(502).json({ error: err.message, currentVersion: currentVersion() });
@@ -81,7 +85,13 @@ function npmExecutable() {
 
 function runStep(cmd, args, options) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, options);
+    const child = spawnSafe(cmd, args, options);
+
+    const timeoutId = setTimeout(() => {
+      child.kill();
+      reject(new Error(`"${cmd} ${args.join(' ')}" tardó más de ${NPM_INSTALL_TIMEOUT_MS / 1000}s y se canceló`));
+    }, NPM_INSTALL_TIMEOUT_MS);
+
     child.stdout?.on('data', (d) =>
       d
         .toString()
@@ -96,8 +106,12 @@ function runStep(cmd, args, options) {
         .filter((l) => l.trim())
         .forEach((line) => logLine(line))
     );
-    child.on('error', reject);
+    child.on('error', (err) => {
+      clearTimeout(timeoutId);
+      reject(err);
+    });
     child.on('close', (code) => {
+      clearTimeout(timeoutId);
       if (code !== 0) return reject(new Error(`"${cmd} ${args.join(' ')}" terminó con código ${code}`));
       resolve();
     });
@@ -161,7 +175,6 @@ async function applyUpdate() {
   await runStep(npmExecutable(), ['install', '--omit=dev', '--no-fund', '--no-audit'], {
     cwd: INSTALL_ROOT,
     env: { ...process.env, PATH: `${nodeDir}${path.delimiter}${process.env.PATH}` },
-    shell: process.platform === 'win32', // npm.cmd no se puede ejecutar directo sin pasar por una shell en Windows
   });
 
   logLine('==> Reiniciando el servidor...');
@@ -180,16 +193,20 @@ async function applyUpdate() {
 }
 
 router.post('/apply', (req, res) => {
-  if (activeJob) return res.status(409).json({ error: 'Ya hay una actualización en curso' });
-  activeJob = true;
+  if (!jobLock.tryAcquire(UPDATE_LABEL)) {
+    return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
+  }
   res.status(202).json({ started: true });
 
   applyUpdate()
     .then(() => {
+      // No se libera el candado en el camino feliz: applyUpdate() termina
+      // matando este mismo proceso (process.exit) para reiniciar con el
+      // codigo nuevo, asi que no hay "despues" en el que liberarlo importe.
       broadcast('update:done', { success: true });
     })
     .catch((err) => {
-      activeJob = false;
+      jobLock.release(UPDATE_LABEL);
       logLine(`Error: ${err.message}`);
       broadcast('update:done', { success: false });
     });

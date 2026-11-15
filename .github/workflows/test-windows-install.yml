@@ -32,6 +32,34 @@ jobs:
           Expand-Archive node-portable.zip -DestinationPath .
           Rename-Item "node-v$ver-win-x64" node-runtime
 
+      - name: Verificar que los comandos no se rompen con espacios en la ruta (bug real: perfil "Juan Perez")
+        shell: pwsh
+        run: |
+          $spaceDir = "$env:RUNNER_TEMP\Carpeta Con Espacio"
+          New-Item -ItemType Directory -Force -Path $spaceDir | Out-Null
+          Copy-Item "node-runtime\npm.cmd" "$spaceDir\npm.cmd"
+          Copy-Item "node-runtime\node.exe" "$spaceDir\node.exe"
+          Copy-Item -Recurse "node-runtime\node_modules" "$spaceDir\node_modules" -ErrorAction SilentlyContinue
+
+          $testLines = @(
+            'const { spawnSafe } = require(process.cwd() + "\\server\\spawn-safe.js");',
+            'const path = require("path");',
+            'const child = spawnSafe(path.join(process.argv[2], "npm.cmd"), ["--version"]);',
+            'let out = "";',
+            'child.stdout.on("data", (d) => (out += d));',
+            'child.on("close", (code) => {',
+            '  console.log("EXIT:" + code);',
+            '  console.log("OUT:" + out.trim());',
+            '});'
+          )
+          Set-Content -Path "test-spawn-safe.js" -Value $testLines
+
+          $result = & "node-runtime\node.exe" test-spawn-safe.js "$spaceDir" | Out-String
+          Write-Host $result
+          if ($result -notmatch 'EXIT:0') { throw "spawnSafe fallo con una ruta que tiene espacios: $result" }
+          Write-Host "OK: spawnSafe funciona con rutas que tienen espacios"
+          Remove-Item "test-spawn-safe.js"
+
       - name: Descargar el instalador del SDK de Tizen y Android Platform Tools (igual que el instalador real)
         shell: pwsh
         run: |

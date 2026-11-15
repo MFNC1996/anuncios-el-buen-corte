@@ -1,10 +1,11 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { spawn, execFile } = require('child_process');
 const express = require('express');
 const { broadcast } = require('../ws');
 const { detectServerIp } = require('../network-info');
+const { spawnSafe, execFileSafe } = require('../spawn-safe');
+const jobLock = require('../job-lock');
 
 const router = express.Router();
 const INSTALL_ROOT = path.join(__dirname, '..', '..');
@@ -17,10 +18,6 @@ function tizenHome() {
   return path.join(os.homedir(), 'tizen-studio');
 }
 
-// PATH de las herramientas de Tizen Studio (tizen/sdb), igual en Windows,
-// Mac o Linux: siempre viven en ~/tizen-studio dentro del home del usuario
-// que corre el servidor. path.delimiter/path.join resuelven el separador
-// (';' en Windows, ':' en Mac/Linux) y las barras correctas de cada OS solos.
 function tizenEnv() {
   const toolsBin = path.join(tizenHome(), 'tools', 'ide', 'bin');
   const tools = path.join(tizenHome(), 'tools');
@@ -29,14 +26,15 @@ function tizenEnv() {
 
 function commandExists(cmd, env) {
   return new Promise((resolve) => {
-    execFile(cmd, ['version'], { env, timeout: 10000, shell: process.platform === 'win32' }, (err) => resolve(!err));
+    execFileSafe(cmd, ['version'], { env, timeout: 10000 }, (err) => resolve(!err));
   });
 }
 
-let activeJob = null;
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
 const DEPLOY_TIMEOUT_MS = 2 * 60 * 1000;
 const SDK_INSTALL_TIMEOUT_MS = 12 * 60 * 1000;
+const DEPLOY_LABEL = 'tizen-deploy';
+const SDK_LABEL = 'tizen-install-sdk';
 
 router.get('/check', async (req, res) => {
   const env = tizenEnv();
@@ -47,19 +45,21 @@ router.get('/check', async (req, res) => {
     sdbOk,
     canAutoInstallSdk: process.platform === 'win32' && fs.existsSync(INSTALLER_EXE),
     serverIp: detectServerIp(),
-    busy: !!activeJob,
+    busy: jobLock.isBusy(),
+    busyWith: jobLock.currentLabel(),
   });
 });
 
 // Corre un comando externo y manda cada línea de su salida por WebSocket a
-// medida que llega, en vez de esperar a que termine todo. shell:true es
-// necesario en Windows: "tizen" (y cualquier instalador .exe invocado con
-// argumentos) no se puede ejecutar de forma confiable con spawn() sin pasar
-// por una shell — el mismo problema que tenía "npm.cmd" en el actualizador.
-function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log' } = {}) {
+// medida que llega. `cancelToken` se revisa antes de arrancar el paso: si ya
+// se canceló (por el timeout de más abajo), se corta ahí en vez de lanzar un
+// comando más sobre un trabajo que el panel ya dio por terminado.
+function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log', cancelToken } = {}) {
+  if (cancelToken?.cancelled) return Promise.reject(new Error('Cancelado por tiempo de espera agotado.'));
+
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { env, shell: process.platform === 'win32' });
-    activeJob = child;
+    const child = spawnSafe(cmd, args, { env });
+    if (cancelToken) cancelToken.activeChild = child;
 
     const forward = (data) => {
       data
@@ -79,6 +79,10 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log' }
       reject(err);
     });
     child.on('close', (code) => {
+      if (cancelToken?.cancelled) {
+        reject(new Error('Cancelado por tiempo de espera agotado.'));
+        return;
+      }
       if (code !== 0 && !ignoreError) {
         reject(new Error(`"${cmd} ${args.join(' ')}" terminó con código ${code}`));
         return;
@@ -88,7 +92,7 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log' }
   });
 }
 
-async function deploy(tvIp, serverIp) {
+async function deploy(tvIp, serverIp, cancelToken) {
   const env = tizenEnv();
 
   fs.rmSync(BUILD_DIR, { recursive: true, force: true });
@@ -105,10 +109,10 @@ async function deploy(tvIp, serverIp) {
   fs.writeFileSync(path.join(SRC_DIR, 'index.html'), patchedHtml);
 
   broadcast('tizen:log', { line: `==> Conectando a la TV (${tvIp})...` });
-  await runStep('sdb', ['connect', tvIp], env, { ignoreError: true });
-  await runStep('sdb', ['connect', `${tvIp}:26101`], env, { ignoreError: true });
+  await runStep('sdb', ['connect', tvIp], env, { ignoreError: true, cancelToken });
+  await runStep('sdb', ['connect', `${tvIp}:26101`], env, { ignoreError: true, cancelToken });
 
-  const { output: devicesOutput } = await runStep('sdb', ['devices'], env, { ignoreError: true });
+  const { output: devicesOutput } = await runStep('sdb', ['devices'], env, { ignoreError: true, cancelToken });
   const deviceId = devicesOutput
     .split('\n')
     .map((line) => line.trim())
@@ -122,16 +126,49 @@ async function deploy(tvIp, serverIp) {
   broadcast('tizen:log', { line: `==> TV detectada: ${deviceId}` });
 
   broadcast('tizen:log', { line: '==> Empaquetando la app (.wgt)...' });
-  await runStep('tizen', ['package', '-t', 'wgt', '-s', 'ebcorte', '-o', BUILD_DIR, '--', SRC_DIR], env);
+  await runStep('tizen', ['package', '-t', 'wgt', '-s', 'ebcorte', '-o', BUILD_DIR, '--', SRC_DIR], env, { cancelToken });
 
   const wgtFile = fs.readdirSync(BUILD_DIR).find((f) => f.endsWith('.wgt'));
   if (!wgtFile) throw new Error('No se generó el archivo .wgt esperado.');
   const wgtPath = path.join(BUILD_DIR, wgtFile);
 
   broadcast('tizen:log', { line: `==> Instalando ${wgtFile} en la TV...` });
-  await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env);
+  await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
 
   broadcast('tizen:log', { line: "==> Listo. Busca 'Cartelera El Buen Corte' en el menú Apps de la TV y ábrela." });
+}
+
+// Corre `fn` bajo el candado global (jobLock), con un timeout que cancela
+// de verdad: marca cancelToken.cancelled para que runStep() no siga
+// lanzando pasos nuevos ni reporte éxito de uno que ya se dio por vencido,
+// en vez de solo matar el proceso hijo que esté activo en ese instante
+// (que podía ya estar cerrado, dejando el job "cancelado" corriendo igual).
+function runTrackedJob({ label, timeoutMs, doneEvent, logEvent, fn }) {
+  if (!jobLock.tryAcquire(label)) return false;
+
+  const cancelToken = { cancelled: false, activeChild: null };
+  let settled = false;
+
+  const timeoutId = setTimeout(() => {
+    cancelToken.cancelled = true;
+    if (cancelToken.activeChild?.kill) cancelToken.activeChild.kill();
+    finish(false, `Cancelado — tardó más de ${timeoutMs / 1000}s.`);
+  }, timeoutMs);
+
+  function finish(success, errorLine) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeoutId);
+    if (errorLine) broadcast(logEvent, { line: errorLine });
+    broadcast(doneEvent, { success });
+    jobLock.release(label);
+  }
+
+  fn(cancelToken)
+    .then(() => finish(true))
+    .catch((err) => finish(false, `Error: ${err.message}`));
+
+  return true;
 }
 
 router.post('/deploy', (req, res) => {
@@ -140,38 +177,24 @@ router.post('/deploy', (req, res) => {
   if (!IPV4_RE.test(tvIp) || !IPV4_RE.test(serverIp)) {
     return res.status(400).json({ error: 'La IP de la TV y del servidor deben ser direcciones IPv4 válidas' });
   }
-  if (activeJob) return res.status(409).json({ error: 'Ya hay una instalación en curso' });
 
-  activeJob = true; // marcador hasta que el primer paso real lo reemplace
   broadcast('tizen:log', { line: `Instalando en ${tvIp} (servidor ${serverIp})...` });
+  const started = runTrackedJob({
+    label: DEPLOY_LABEL,
+    timeoutMs: DEPLOY_TIMEOUT_MS,
+    doneEvent: 'tizen:done',
+    logEvent: 'tizen:log',
+    fn: (cancelToken) => deploy(tvIp, serverIp, cancelToken),
+  });
 
-  const timeoutId = setTimeout(() => {
-    if (activeJob && activeJob.kill) activeJob.kill();
-    broadcast('tizen:log', { line: `Instalación cancelada — tardó más de ${DEPLOY_TIMEOUT_MS / 1000}s.` });
-    broadcast('tizen:done', { success: false, code: -1 });
-    activeJob = null;
-  }, DEPLOY_TIMEOUT_MS);
-
-  deploy(tvIp, serverIp)
-    .then(() => {
-      clearTimeout(timeoutId);
-      broadcast('tizen:done', { success: true, code: 0 });
-      activeJob = null;
-    })
-    .catch((err) => {
-      clearTimeout(timeoutId);
-      broadcast('tizen:log', { line: `Error: ${err.message}` });
-      broadcast('tizen:done', { success: false, code: -1 });
-      activeJob = null;
-    });
-
+  if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
   res.status(202).json({ started: true });
 });
 
 // Instala el SDK de Tizen usando el instalador que ya viene adentro del
 // programa (tizen-studio-installer.exe) — nada que descargar ni buscar a
 // mano, todo desde el botón del panel.
-async function installSdk() {
+async function installSdk(cancelToken) {
   if (process.platform !== 'win32') {
     throw new Error('La instalación automática del SDK solo está disponible en Windows.');
   }
@@ -181,7 +204,10 @@ async function installSdk() {
 
   const home = tizenHome();
   broadcast('tizensdk:log', { line: '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...' });
-  await runStep(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], process.env, { logEvent: 'tizensdk:log' });
+  await runStep(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], process.env, {
+    logEvent: 'tizensdk:log',
+    cancelToken,
+  });
 
   const tizenBin = path.join(home, 'tools', 'ide', 'bin', 'tizen.bat');
   if (!fs.existsSync(tizenBin)) {
@@ -192,44 +218,32 @@ async function installSdk() {
   broadcast('tizensdk:log', { line: '==> Creando el certificado de firma de la app...' });
   await runStep('tizen', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL'], env, {
     logEvent: 'tizensdk:log',
+    cancelToken,
   });
   await runStep(
     'tizen',
     ['security-profiles', 'add', '-n', 'ebcorte', '-a', path.join(`${home}-data`, 'keystore', 'author', 'ebcorte.p12'), '-p', '0000'],
     env,
-    { logEvent: 'tizensdk:log' }
+    { logEvent: 'tizensdk:log', cancelToken }
   );
   await runStep('tizen', ['cli-config', `profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}`], env, {
     logEvent: 'tizensdk:log',
+    cancelToken,
   });
 
   broadcast('tizensdk:log', { line: '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.' });
 }
 
 router.post('/install-sdk', (req, res) => {
-  if (activeJob) return res.status(409).json({ error: 'Ya hay una instalación en curso' });
-  activeJob = true;
+  const started = runTrackedJob({
+    label: SDK_LABEL,
+    timeoutMs: SDK_INSTALL_TIMEOUT_MS,
+    doneEvent: 'tizensdk:done',
+    logEvent: 'tizensdk:log',
+    fn: installSdk,
+  });
 
-  const timeoutId = setTimeout(() => {
-    if (activeJob && activeJob.kill) activeJob.kill();
-    broadcast('tizensdk:log', { line: `Instalación cancelada — tardó más de ${SDK_INSTALL_TIMEOUT_MS / 1000}s.` });
-    broadcast('tizensdk:done', { success: false });
-    activeJob = null;
-  }, SDK_INSTALL_TIMEOUT_MS);
-
-  installSdk()
-    .then(() => {
-      clearTimeout(timeoutId);
-      broadcast('tizensdk:done', { success: true });
-      activeJob = null;
-    })
-    .catch((err) => {
-      clearTimeout(timeoutId);
-      broadcast('tizensdk:log', { line: `Error: ${err.message}` });
-      broadcast('tizensdk:done', { success: false });
-      activeJob = null;
-    });
-
+  if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
   res.status(202).json({ started: true });
 });
 
