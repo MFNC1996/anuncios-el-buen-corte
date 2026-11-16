@@ -664,6 +664,30 @@ main {
   word-break: break-word;
 }
 
+/* ---- Spinner de "trabajando" junto al título de Progreso ---- */
+.job-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ebc-green);
+}
+.job-spinner__ring {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid var(--ebc-border);
+  border-top-color: var(--ebc-green);
+  border-radius: 50%;
+  animation: ebc-job-spin 0.8s linear infinite;
+}
+@keyframes ebc-job-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .readiness-row {
   display: flex;
   align-items: center;

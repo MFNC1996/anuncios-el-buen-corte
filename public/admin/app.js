@@ -752,6 +752,16 @@
   const tizenScanBtn = document.getElementById('tizen-scan');
   const tizenScanResults = document.getElementById('tizen-scan-results');
   const tizenLog = document.getElementById('tizen-log');
+  const tizenSpinner = document.getElementById('tizen-spinner');
+
+  // Spinner junto a "Progreso": se prende apenas se aprieta un botón y se
+  // apaga cuando llega el evento "...:done" (éxito o error) — así siempre
+  // queda claro si algo sigue corriendo, incluso si el registro de texto
+  // tarda en mostrar la próxima línea (ej. mientras espera una respuesta
+  // por red que no imprime nada hasta que termina).
+  function setSpinner(el, busy) {
+    if (el) el.hidden = !busy;
+  }
 
   function readinessRow(ok, label) {
     return `<div class="readiness-row"><span class="readiness-dot ${ok ? 'ok' : 'fail'}"></span>${label}</div>`;
@@ -815,12 +825,14 @@
     tizenLog.textContent = '';
     tizenInstallSdkBtn.disabled = true;
     tizenDeployBtn.disabled = true;
+    setSpinner(tizenSpinner, true);
     try {
       await api('POST', '/api/tizen/install-sdk');
     } catch (err) {
       showToast(err.message, true);
       tizenInstallSdkBtn.disabled = false;
       tizenDeployBtn.disabled = false;
+      setSpinner(tizenSpinner, false);
     }
   });
 
@@ -833,9 +845,11 @@
     }
     tizenLog.textContent = '';
     tizenDeployBtn.disabled = true;
+    setSpinner(tizenSpinner, true);
     try {
       await api('POST', '/api/tizen/deploy', { tvIp, serverIp, screenId: Number(tizenScreenSelect.value) || 1 });
     } catch (err) {
+      setSpinner(tizenSpinner, false);
       showToast(err.message, true);
       tizenDeployBtn.disabled = false;
     }
@@ -881,6 +895,7 @@
   const androidApkFile = document.getElementById('android-apk-file');
   const androidInstallApkBtn = document.getElementById('android-install-apk');
   const androidLog = document.getElementById('android-log');
+  const androidSpinner = document.getElementById('android-spinner');
   let androidServerIp = '';
 
   async function populateScreenSelects() {
@@ -947,6 +962,7 @@
     }
     androidLog.textContent = '';
     setAndroidBusy(true);
+    setSpinner(androidSpinner, true);
     try {
       await api('POST', '/api/android/deploy', {
         tvIp,
@@ -956,6 +972,7 @@
     } catch (err) {
       showToast(err.message, true);
       setAndroidBusy(false);
+      setSpinner(androidSpinner, false);
     }
   });
 
@@ -967,11 +984,13 @@
     }
     androidLog.textContent = '';
     setAndroidBusy(true);
+    setSpinner(androidSpinner, true);
     try {
       await api('POST', '/api/android/open-play-store', { tvIp });
     } catch (err) {
       showToast(err.message, true);
       setAndroidBusy(false);
+      setSpinner(androidSpinner, false);
     }
   });
 
@@ -988,6 +1007,7 @@
     }
     androidLog.textContent = '';
     setAndroidBusy(true);
+    setSpinner(androidSpinner, true);
     const formData = new FormData();
     formData.append('apk', file);
     formData.append('tvIp', tvIp);
@@ -1000,6 +1020,7 @@
     } catch (err) {
       showToast(err.message, true);
       setAndroidBusy(false);
+      setSpinner(androidSpinner, false);
     }
   });
 
@@ -1009,6 +1030,7 @@
   const updateCheckBtn = document.getElementById('update-check');
   const updateApplyBtn = document.getElementById('update-apply');
   const updateLog = document.getElementById('update-log');
+  const updateSpinner = document.getElementById('update-spinner');
 
   function appendUpdateLog(line) {
     if (updateLog.textContent === 'Esperando...') updateLog.textContent = '';
@@ -1045,6 +1067,7 @@
     updateApplyBtn.disabled = true;
     updateCheckBtn.disabled = true;
     updateLog.textContent = '';
+    setSpinner(updateSpinner, true);
     appendUpdateLog('Iniciando actualización. No cierres esta ventana ni apagues el PC...');
     try {
       await api('POST', '/api/update/apply');
@@ -1052,6 +1075,7 @@
       showToast(err.message, true);
       updateApplyBtn.disabled = false;
       updateCheckBtn.disabled = false;
+      setSpinner(updateSpinner, false);
     }
   });
 
@@ -1086,6 +1110,7 @@
       if (msg.event === 'tizen:log') {
         appendTizenLog(msg.payload.line);
       } else if (msg.event === 'tizen:done') {
+        setSpinner(tizenSpinner, false);
         appendTizenLog(msg.payload.success ? '✅ Instalación completa.' : `❌ Terminó con error (código ${msg.payload.code}).`);
         showToast(msg.payload.success ? 'App instalada en la TV' : 'La instalación falló, revisa el registro', !msg.payload.success);
         checkTizenReadiness();
@@ -1096,6 +1121,7 @@
           appendUpdateLog('✅ Actualización completa. Reiniciando y recargando esta página...');
           waitForServerAndReload();
         } else {
+          setSpinner(updateSpinner, false);
           appendUpdateLog('❌ La actualización falló.');
           showToast('La actualización falló, revisa el registro', true);
           updateApplyBtn.disabled = false;
@@ -1104,12 +1130,14 @@
       } else if (msg.event === 'tizensdk:log') {
         appendTizenLog(msg.payload.line);
       } else if (msg.event === 'tizensdk:done') {
+        setSpinner(tizenSpinner, false);
         appendTizenLog(msg.payload.success ? '✅ SDK instalado.' : '❌ La instalación del SDK falló.');
         showToast(msg.payload.success ? 'SDK de Tizen instalado' : 'Falló la instalación del SDK, revisa el registro', !msg.payload.success);
         checkTizenReadiness();
       } else if (msg.event === 'android:log') {
         appendAndroidLog(msg.payload.line);
       } else if (msg.event === 'android:done') {
+        setSpinner(androidSpinner, false);
         appendAndroidLog(msg.payload.success ? '✅ Listo.' : '❌ Terminó con error.');
         showToast(msg.payload.success ? 'Listo' : 'Falló, revisa el registro', !msg.payload.success);
         setAndroidBusy(false);
