@@ -779,3 +779,47 @@ main {
 .screen-box__actions button.danger {
   color: var(--ebc-red);
 }
+
+/* ---- Cuadros propios en vez de confirm()/prompt() del navegador ---- */
+.ebc-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 27, 31, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.ebc-modal {
+  background: var(--ebc-surface);
+  border-radius: var(--ebc-radius-lg);
+  box-shadow: var(--ebc-shadow-lg);
+  padding: 1.5rem;
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.ebc-modal__message {
+  margin: 0;
+  color: var(--ebc-ink);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+.ebc-modal__input {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--ebc-border);
+  border-radius: 6px;
+  font-size: 1rem;
+  width: 100%;
+}
+.ebc-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.ebc-modal__actions .btn.danger {
+  background: var(--ebc-red);
+  border-color: var(--ebc-red);
+}

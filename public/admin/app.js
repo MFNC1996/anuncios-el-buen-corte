@@ -32,6 +32,60 @@
     showToast._t = setTimeout(() => (toastEl.hidden = true), 2200);
   }
 
+  // Cuadros propios en vez de confirm()/prompt() del navegador: esos
+  // dialogos nativos no funcionan en algunos contextos (ej. una ventana
+  // abierta en modo "app" de Chrome/Edge, como la que usa el acceso directo
+  // del Escritorio) — ahí prompt() directamente no hace nada.
+  function showModal({ message, withInput = false, defaultValue = '', confirmLabel = 'Aceptar', danger = false }) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'ebc-modal-overlay';
+      overlay.innerHTML = `
+        <div class="ebc-modal">
+          <p class="ebc-modal__message"></p>
+          ${withInput ? '<input type="text" class="ebc-modal__input" />' : ''}
+          <div class="ebc-modal__actions">
+            <button type="button" class="btn-outline" data-action="cancel">Cancelar</button>
+            <button type="button" class="btn btn-primary${danger ? ' danger' : ''}" data-action="confirm"></button>
+          </div>
+        </div>`;
+      overlay.querySelector('.ebc-modal__message').textContent = message;
+      overlay.querySelector('[data-action="confirm"]').textContent = confirmLabel;
+      document.body.appendChild(overlay);
+
+      const input = overlay.querySelector('.ebc-modal__input');
+      if (input) {
+        input.value = defaultValue;
+        input.focus();
+        input.select();
+      }
+
+      function close(result) {
+        overlay.remove();
+        resolve(result);
+      }
+      overlay.querySelector('[data-action="cancel"]').addEventListener('click', () => close(withInput ? null : false));
+      overlay.querySelector('[data-action="confirm"]').addEventListener('click', () => {
+        close(withInput ? input.value.trim() || null : true);
+      });
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close(withInput ? null : false);
+      });
+      overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') close(withInput ? null : false);
+        if (e.key === 'Enter' && input) close(input.value.trim() || null);
+      });
+    });
+  }
+
+  function showConfirm(message, { confirmLabel = 'Eliminar', danger = true } = {}) {
+    return showModal({ message, confirmLabel, danger });
+  }
+
+  function showPrompt(message, defaultValue = '') {
+    return showModal({ message, withInput: true, defaultValue, confirmLabel: 'Guardar' });
+  }
+
   async function api(method, url, body) {
     const opts = { method, headers: {} };
     if (body !== undefined) {
@@ -168,11 +222,11 @@
         await api('POST', '/api/items', { category_id: categoryId, name: 'Nuevo producto', price: 0, unit: 'kg' });
         await loadAll();
       } else if (action === 'delete-item') {
-        if (!confirm('¿Eliminar este producto?')) return;
+        if (!(await showConfirm('¿Eliminar este producto?'))) return;
         await api('DELETE', `/api/items/${btn.dataset.itemId}`);
         await loadAll();
       } else if (action === 'delete-category') {
-        if (!confirm('¿Eliminar esta categoría y todos sus productos?')) return;
+        if (!(await showConfirm('¿Eliminar esta categoría y todos sus productos?'))) return;
         await api('DELETE', `/api/categories/${btn.dataset.categoryId}`);
         await loadAll();
       } else if (action === 'pick-photo') {
@@ -366,7 +420,7 @@
     const slideId = Number(btn.dataset.slideId);
     try {
       if (action === 'delete-slide') {
-        if (!confirm('¿Eliminar este cartel de la cartelera?')) return;
+        if (!(await showConfirm('¿Eliminar este cartel de la cartelera?'))) return;
         await api('DELETE', `/api/playlists/slides/${slideId}`);
         await loadAll();
       } else if (action === 'move-slide-up' || action === 'move-slide-down') {
@@ -498,17 +552,17 @@
     const { action } = btn.dataset;
     try {
       if (action === 'delete-profile') {
-        if (!confirm('¿Eliminar este perfil? (tiene que no tener pantallas asignadas)')) return;
+        if (!(await showConfirm('¿Eliminar este perfil? (tiene que no tener pantallas asignadas)'))) return;
         await api('DELETE', `/api/profiles/${btn.dataset.profileId}`);
         await loadProfiles();
       } else if (action === 'add-screen') {
-        const name = prompt('Nombre de la nueva pantalla (ej. "TV Caja 2"):');
+        const name = await showPrompt('Nombre de la nueva pantalla (ej. "TV Caja 2"):');
         if (!name || !name.trim()) return;
         await api('POST', '/api/screens', { name: name.trim(), profile_id: Number(btn.dataset.profileId) });
         await loadProfiles();
         await populateScreenSelects();
       } else if (action === 'delete-screen') {
-        if (!confirm('¿Eliminar esta pantalla? Se borra también su cola de carteles.')) return;
+        if (!(await showConfirm('¿Eliminar esta pantalla? Se borra también su cola de carteles.'))) return;
         await api('DELETE', `/api/screens/${btn.dataset.screenId}`);
         await loadProfiles();
         await populateScreenSelects();
@@ -552,7 +606,7 @@
   });
 
   document.getElementById('add-profile').addEventListener('click', async () => {
-    const name = prompt('Nombre del nuevo perfil (ej. "Exhibición", "Caja", "Afuera"):');
+    const name = await showPrompt('Nombre del nuevo perfil (ej. "Exhibición", "Caja", "Afuera"):');
     if (!name || !name.trim()) return;
     try {
       await api('POST', '/api/profiles', { name: name.trim() });
@@ -656,7 +710,7 @@
   });
 
   backgroundRemoveBtn.addEventListener('click', async () => {
-    if (!confirm('¿Quitar la imagen de fondo? La cartelera volverá al fondo sólido.')) return;
+    if (!(await showConfirm('¿Quitar la imagen de fondo? La cartelera volverá al fondo sólido.'))) return;
     try {
       await fetch('/api/uploads/background', { method: 'DELETE' });
       updateBackgroundPreview(null);
