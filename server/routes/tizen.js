@@ -176,7 +176,7 @@ function runTrackedJob({ label, timeoutMs, doneEvent, logEvent, fn }) {
     settled = true;
     clearTimeout(timeoutId);
     if (errorLine) logLine(logEvent, errorLine);
-    broadcast(doneEvent, { success });
+    broadcast(doneEvent, { success, error: errorLine || null });
     jobLock.release(label);
   }
 

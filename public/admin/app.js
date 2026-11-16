@@ -1111,8 +1111,8 @@
         appendTizenLog(msg.payload.line);
       } else if (msg.event === 'tizen:done') {
         setSpinner(tizenSpinner, false);
-        appendTizenLog(msg.payload.success ? '✅ Instalación completa.' : `❌ Terminó con error (código ${msg.payload.code}).`);
-        showToast(msg.payload.success ? 'App instalada en la TV' : 'La instalación falló, revisa el registro', !msg.payload.success);
+        appendTizenLog(msg.payload.success ? '✅ Instalación completa.' : `❌ ${msg.payload.error || 'Terminó con error.'}`);
+        showToast(msg.payload.success ? 'App instalada en la TV' : msg.payload.error || 'La instalación falló, revisa el registro', !msg.payload.success);
         checkTizenReadiness();
       } else if (msg.event === 'update:log') {
         appendUpdateLog(msg.payload.line);
@@ -1122,8 +1122,8 @@
           waitForServerAndReload();
         } else {
           setSpinner(updateSpinner, false);
-          appendUpdateLog('❌ La actualización falló.');
-          showToast('La actualización falló, revisa el registro', true);
+          appendUpdateLog(`❌ ${msg.payload.error || 'La actualización falló.'}`);
+          showToast(msg.payload.error || 'La actualización falló, revisa el registro', true);
           updateApplyBtn.disabled = false;
           updateCheckBtn.disabled = false;
         }
@@ -1131,15 +1131,15 @@
         appendTizenLog(msg.payload.line);
       } else if (msg.event === 'tizensdk:done') {
         setSpinner(tizenSpinner, false);
-        appendTizenLog(msg.payload.success ? '✅ SDK instalado.' : '❌ La instalación del SDK falló.');
-        showToast(msg.payload.success ? 'SDK de Tizen instalado' : 'Falló la instalación del SDK, revisa el registro', !msg.payload.success);
+        appendTizenLog(msg.payload.success ? '✅ SDK instalado.' : `❌ ${msg.payload.error || 'La instalación del SDK falló.'}`);
+        showToast(msg.payload.success ? 'SDK de Tizen instalado' : msg.payload.error || 'Falló la instalación del SDK, revisa el registro', !msg.payload.success);
         checkTizenReadiness();
       } else if (msg.event === 'android:log') {
         appendAndroidLog(msg.payload.line);
       } else if (msg.event === 'android:done') {
         setSpinner(androidSpinner, false);
-        appendAndroidLog(msg.payload.success ? '✅ Listo.' : '❌ Terminó con error.');
-        showToast(msg.payload.success ? 'Listo' : 'Falló, revisa el registro', !msg.payload.success);
+        appendAndroidLog(msg.payload.success ? '✅ Listo.' : `❌ ${msg.payload.error || 'Terminó con error.'}`);
+        showToast(msg.payload.success ? 'Listo' : msg.payload.error || 'Falló, revisa el registro', !msg.payload.success);
         setAndroidBusy(false);
         checkAndroidReadiness();
       }

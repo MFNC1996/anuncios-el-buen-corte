@@ -208,7 +208,7 @@ router.post('/apply', (req, res) => {
     .catch((err) => {
       jobLock.release(UPDATE_LABEL);
       logLine(`Error: ${err.message}`);
-      broadcast('update:done', { success: false });
+      broadcast('update:done', { success: false, error: err.message });
     });
 });
 
