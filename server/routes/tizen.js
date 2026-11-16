@@ -208,6 +208,38 @@ router.post('/deploy', (req, res) => {
   res.status(202).json({ started: true });
 });
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Corre en paralelo contra el proceso del instalador: gana lo que pase
+// primero, que el proceso cierre solo o que "tizen"/"sdb" ya respondan.
+async function waitForToolsOrExit(child, env, cancelToken) {
+  let exited = false;
+  let exitError = null;
+  child.on('close', (code) => {
+    exited = true;
+    if (code !== 0) exitError = new Error(`El instalador del SDK terminó con código ${code}`);
+  });
+  child.on('error', (err) => {
+    exited = true;
+    exitError = err;
+  });
+
+  while (!exited) {
+    if (cancelToken?.cancelled) throw new Error('Cancelado por tiempo de espera agotado.');
+    await sleep(4000);
+    const [tizenOk, sdbOk] = await Promise.all([commandExists('tizen', env), commandExists('sdb', env)]);
+    if (tizenOk && sdbOk) return;
+  }
+  if (exitError) throw exitError;
+
+  // El proceso cerró solo justo antes de que lográramos detectar las
+  // herramientas listas en la última vuelta — se revisa una vez más.
+  const [tizenOk, sdbOk] = await Promise.all([commandExists('tizen', env), commandExists('sdb', env)]);
+  if (!tizenOk || !sdbOk) throw new Error('El instalador terminó pero tizen/sdb no quedaron utilizables.');
+}
+
 // Instala el SDK de Tizen usando el instalador que ya viene adentro del
 // programa (tizen-studio-installer.exe) — nada que descargar ni buscar a
 // mano, todo desde el botón del panel.
@@ -220,19 +252,35 @@ async function installSdk(cancelToken) {
   }
 
   const home = tizenHome();
+  const env = tizenEnv();
   logLine('tizensdk:log', '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...');
-  await runStep(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], process.env, {
-    logEvent: 'tizensdk:log',
-    cancelToken,
-  });
+
+  // El instalador de Tizen Studio sigue corriendo (bajando paquetes extra,
+  // limpieza interna) mucho después de que "tizen"/"sdb" ya quedaron
+  // instalados y utilizables en disco — en un runner de CI real esto tardó
+  // 40+ minutos de puro silencio después de que las herramientas ya
+  // funcionaban. En vez de esperar a que el proceso cierre solo, se corre
+  // sin esperarlo y en paralelo se revisa cada pocos segundos si "tizen" y
+  // "sdb" ya responden: lo que pase primero (vía waitForToolsOrExit).
+  const installerChild = spawnSafe(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], {});
+  if (cancelToken) cancelToken.activeChild = installerChild;
+  const forwardInstallerLine = (data) =>
+    data
+      .toString()
+      .split('\n')
+      .filter((l) => l.trim())
+      .forEach((l) => logLine('tizensdk:log', l));
+  installerChild.stdout?.on('data', forwardInstallerLine);
+  installerChild.stderr?.on('data', forwardInstallerLine);
+
+  await waitForToolsOrExit(installerChild, env, cancelToken);
 
   const tizenBin = path.join(home, 'tools', 'ide', 'bin', 'tizen.bat');
   if (!fs.existsSync(tizenBin)) {
-    throw new Error('La instalación terminó pero no se encontró tizen.bat — revisa el registro de arriba.');
+    throw new Error('El instalador terminó pero no se encontró tizen.bat — revisa el registro de arriba.');
   }
 
-  const env = tizenEnv();
-  logLine('tizensdk:log', '==> Creando el certificado de firma de la app...');
+  logLine('tizensdk:log', '==> tizen/sdb ya responden — creando el certificado de firma de la app...');
   await runStep('tizen', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL'], env, {
     logEvent: 'tizensdk:log',
     cancelToken,
