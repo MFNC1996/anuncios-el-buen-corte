@@ -52,6 +52,26 @@ body {
   margin-left: auto;
 }
 
+.btn-help {
+  margin-left: auto;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--ebc-surface);
+  background: transparent;
+  color: var(--ebc-surface);
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-help:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 @media (max-width: 640px) {
   .admin-header {
     flex-wrap: wrap;
@@ -822,4 +842,33 @@ main {
 .ebc-modal__actions .btn.danger {
   background: var(--ebc-red);
   border-color: var(--ebc-red);
+}
+
+/* ---- Modal de ayuda (lista más larga, mismo overlay) ---- */
+.ebc-modal--help {
+  width: min(560px, 100%);
+  max-height: 85vh;
+}
+.ebc-modal__title {
+  margin: 0;
+  color: var(--ebc-red);
+  font-size: 1.2rem;
+}
+.ebc-modal__help-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-right: 0.25rem;
+}
+.ebc-modal__help-item strong {
+  display: block;
+  color: var(--ebc-green);
+  margin-bottom: 0.2rem;
+}
+.ebc-modal__help-item p {
+  margin: 0;
+  color: var(--ebc-ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.4;
 }

@@ -58,6 +58,11 @@
         input.value = defaultValue;
         input.focus();
         input.select();
+      } else {
+        // Sin esto, Escape no cierra el cuadro: el foco se queda en el
+        // <body> y el keydown nunca llega a burbujear hasta el overlay.
+        overlay.setAttribute('tabindex', '-1');
+        overlay.focus();
       }
 
       function close(result) {
@@ -85,6 +90,67 @@
   function showPrompt(message, defaultValue = '') {
     return showModal({ message, withInput: true, defaultValue, confirmLabel: 'Guardar' });
   }
+
+  // ---------------- Ayuda: qué hace cada pestaña ----------------
+  const HELP_SECTIONS = [
+    {
+      title: 'Productos',
+      body: 'Cambia nombres, precios, unidad y foto de cada producto. Las flechas ↑↓ reordenan los productos dentro de su categoría; "+ Agregar categoría" y "+ Agregar producto" crean cosas nuevas.',
+    },
+    {
+      title: 'Orden en pantalla',
+      body: 'Acá armas la cola de carteles que van pasando en la TV. Cada tarjeta es un cartel: elige qué muestra (una categoría de productos, o algo institucional como Portada, Horario, Redes, QR o una Imagen personalizada), con qué plantilla, qué animación y cuántos segundos dura. Las flechas ↑↓ cambian el orden.',
+    },
+    {
+      title: 'Pantallas',
+      body: 'Solo hace falta tocar esto si tienes más de una TV. Organiza tus TVs en perfiles (ej. "Caja", "Exhibición", "Afuera") — cada perfil tiene su propia cola de carteles y nunca se mezcla con la de otro perfil. Arrastra las pantallas dentro de su perfil para acomodarlas: sirve sobre todo para el modo mosaico, donde varias TVs juntas muestran una sola imagen grande repartida entre ellas.',
+    },
+    {
+      title: 'Datos del local',
+      body: 'Tu Instagram, Facebook, WhatsApp, horario de atención, y la imagen de fondo que se ve detrás de los carteles (con su transparencia). Estos datos alimentan los carteles de "Síguenos en redes", "Horario" y el QR de WhatsApp.',
+    },
+    {
+      title: 'TV',
+      body: 'Acá conectas una TV nueva, sin cables. Android TV/Google TV/Fire TV Stick por un lado, Samsung (Tizen) por otro — cada uno con su propio botón "Buscar TVs en la red" y su botón para instalar/abrir la cartelera. Sigue los pasos de cada sección según qué marca sea tu TV.',
+    },
+    {
+      title: 'Software',
+      body: 'Acá ves qué versión del programa tienes instalada y buscas actualizaciones. Si hay una nueva, un botón la instala sola — nunca borra tus precios ni fotos guardadas.',
+    },
+  ];
+
+  function showHelpModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'ebc-modal-overlay';
+    overlay.innerHTML = `
+      <div class="ebc-modal ebc-modal--help">
+        <h2 class="ebc-modal__title">¿Cómo se usa cada pestaña?</h2>
+        <div class="ebc-modal__help-list">
+          ${HELP_SECTIONS.map(
+            (s) => `<div class="ebc-modal__help-item"><strong>${escapeHtml(s.title)}</strong><p>${escapeHtml(s.body)}</p></div>`
+          ).join('')}
+        </div>
+        <div class="ebc-modal__actions">
+          <button type="button" class="btn btn-primary" data-action="confirm">Entendido</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.setAttribute('tabindex', '-1');
+    overlay.focus();
+
+    function close() {
+      overlay.remove();
+    }
+    overlay.querySelector('[data-action="confirm"]').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+    overlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
+  }
+
+  document.getElementById('help-btn').addEventListener('click', showHelpModal);
 
   async function api(method, url, body) {
     const opts = { method, headers: {} };
