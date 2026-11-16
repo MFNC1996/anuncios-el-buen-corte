@@ -2,6 +2,7 @@ const express = require('express');
 const QRCode = require('qrcode');
 const db = require('../db');
 const { broadcast } = require('../ws');
+const { asyncRoute } = require('../async-route');
 
 const router = express.Router();
 
@@ -34,13 +35,13 @@ async function buildSettingsResponse(row) {
   };
 }
 
-router.get('/', async (req, res) => {
+router.get('/', asyncRoute(async (req, res) => {
   const row = db.prepare('SELECT * FROM business_info WHERE id = 1').get();
   if (!row) return res.status(404).json({ error: 'Sin configuración' });
   res.json(await buildSettingsResponse(row));
-});
+}));
 
-router.put('/', async (req, res) => {
+router.put('/', asyncRoute(async (req, res) => {
   const existing = db.prepare('SELECT * FROM business_info WHERE id = 1').get();
   if (!existing) return res.status(404).json({ error: 'Sin configuración' });
 
@@ -63,6 +64,6 @@ router.put('/', async (req, res) => {
   broadcast('content:changed', { entity: 'settings' });
   const updated = db.prepare('SELECT * FROM business_info WHERE id = 1').get();
   res.json(await buildSettingsResponse(updated));
-});
+}));
 
 module.exports = router;

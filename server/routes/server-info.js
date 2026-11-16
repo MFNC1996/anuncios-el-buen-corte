@@ -1,10 +1,11 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const { detectServerIp } = require('../network-info');
+const { asyncRoute } = require('../async-route');
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+router.get('/', asyncRoute(async (req, res) => {
   const ip = detectServerIp();
   const port = process.env.PORT || 4010;
   const adminUrl = ip ? `http://${ip}:${port}/admin` : null;
@@ -14,6 +15,6 @@ router.get('/', async (req, res) => {
     : null;
 
   res.json({ ip, adminUrl, qrDataUrl });
-});
+}));
 
 module.exports = router;

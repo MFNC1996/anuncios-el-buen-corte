@@ -27,6 +27,14 @@
   border-bottom: 0.5vh solid var(--ebc-green);
 }
 
+/* El "display: flex" de arriba tiene más peso que la regla por defecto del
+   navegador para [hidden] (esa es de origen "user-agent", siempre pierde
+   contra una regla de autor) — sin esto, poner stageHeader.hidden = true
+   en player.js no ocultaba nada y la barra roja quedaba encima del mosaico. */
+.board-header[hidden] {
+  display: none;
+}
+
 .board-header .logo-mini {
   height: 7.5vh;
   width: 7.5vh;

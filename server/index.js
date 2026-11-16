@@ -1,6 +1,27 @@
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
 const express = require('express');
+
+// Red de seguridad a nivel de proceso: esta es una pantalla en un local sin
+// nadie mirando la consola, así que un bug no atrapado en cualquier parte
+// (ej. una promesa sin .catch en una ruta de tizen/android/update) no puede
+// tirar abajo TODO el servidor — eso dejaría sin cartelera y sin panel a las
+// demás pantallas/funciones que no tienen nada que ver con el bug. Se deja
+// registro en server/data/crash.log para poder diagnosticarlo después.
+const CRASH_LOG_PATH = path.join(__dirname, 'data', 'crash.log');
+function logCrash(label, err) {
+  const line = `[${new Date().toISOString()}] ${label}: ${(err && err.stack) || err}\n`;
+  console.error(line);
+  try {
+    fs.mkdirSync(path.dirname(CRASH_LOG_PATH), { recursive: true });
+    fs.appendFileSync(CRASH_LOG_PATH, line);
+  } catch (_) {
+    // si ni el log se puede escribir, no hay más que hacer
+  }
+}
+process.on('uncaughtException', (err) => logCrash('uncaughtException', err));
+process.on('unhandledRejection', (err) => logCrash('unhandledRejection', err));
 
 const { initWs } = require('./ws');
 require('./db'); // asegura que la base de datos exista y tenga los datos semilla
