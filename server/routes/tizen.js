@@ -89,6 +89,7 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log', 
 
     let output = '';
     child.stdout.on('data', (d) => (output += d.toString()));
+    child.stderr.on('data', (d) => (output += d.toString()));
 
     child.on('error', (err) => {
       if (ignoreError) return resolve({ code: -1, output });
@@ -100,7 +101,13 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log', 
         return;
       }
       if (code !== 0 && !ignoreError) {
-        reject(new Error(`"${cmd} ${args.join(' ')}" terminó con código ${code}`));
+        // Se adjunta la salida real del comando al error (no solo el código)
+        // para que quien llama pueda distinguir un fallo transitorio de sdb
+        // (ver installWgt más abajo) de uno real, sin tener que repetir el
+        // comando solo para ver qué dijo.
+        const err = new Error(`"${cmd} ${args.join(' ')}" terminó con código ${code}`);
+        err.output = output;
+        reject(err);
         return;
       }
       resolve({ code, output });
@@ -149,9 +156,37 @@ async function deploy(tvIp, serverIp, screenId, cancelToken) {
   const wgtPath = path.join(BUILD_DIR, wgtFile);
 
   logLine('tizen:log', `==> Instalando ${wgtFile} en la TV...`);
-  await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
+  await installWgt(wgtPath, deviceId, tvIp, env, cancelToken);
 
   logLine('tizen:log', "==> Listo. Busca 'Cartelera El Buen Corte' en el menú Apps de la TV y ábrela.");
+}
+
+// "tizen install -t <ip>:26101" a veces falla con "There is no <ip>:26101
+// target" aunque "sdb devices" lo haya mostrado conectado segundos antes
+// (pasó en una TV real: entre conectar y terminar de empaquetar el .wgt, la
+// TV soltó la conexión de depuración). Es un problema conocido de Tizen
+// Studio, no de esta app — la solución que funciona es reconectar y
+// reintentar una vez, no cambiar nada de cómo se arma el paquete.
+async function installWgt(wgtPath, deviceId, tvIp, env, cancelToken) {
+  try {
+    await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
+    return;
+  } catch (err) {
+    if (!/there is no .*target/i.test(err.output || err.message || '')) throw err;
+  }
+
+  logLine('tizen:log', '==> La TV se desconectó justo antes de instalar — reconectando y reintentando...');
+  await runStep('sdb', ['connect', tvIp], env, { ignoreError: true, cancelToken });
+  await runStep('sdb', ['connect', `${tvIp}:26101`], env, { ignoreError: true, cancelToken });
+  await sleep(2000);
+  try {
+    await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
+  } catch (err) {
+    throw new Error(
+      'La TV se desconectó justo antes de instalar (puede pasar si la pantalla entró en reposo). ' +
+        'Revisa que la TV esté encendida y con la pantalla prendida, y vuelve a intentar.'
+    );
+  }
 }
 
 // Corre `fn` bajo el candado global (jobLock), con un timeout que cancela
