@@ -11,6 +11,15 @@
   };
   const FIXED_CONTENT_KEYS = Object.keys(FIXED_CONTENT_LABELS);
 
+  // Íconos de línea inline (en vez de emoji, que se ven distinto según el
+  // sistema operativo/fuente) — mismo trazo en todos lados.
+  const ICON_TRASH =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+  const ICON_SEARCH =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>';
+  const ICON_TV_SMALL =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>';
+
   const state = {
     categories: [],
     itemsByCategory: {},
@@ -233,7 +242,7 @@
         <td>
           <img class="item-thumb" src="${escapeHtml(item.photo_path || '/shared/brand/placeholder.svg')}" alt="" />
           <input type="file" accept="image/png,image/jpeg,image/webp" data-action="upload-photo" data-item-id="${item.id}" hidden />
-          <button class="btn-icon" data-action="pick-photo" data-item-id="${item.id}" title="Cambiar foto">📷</button>
+          <button class="btn-icon" data-action="pick-photo" data-item-id="${item.id}" title="Cambiar foto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
         </td>
         <td><input type="text" value="${escapeHtml(item.name)}" data-action="edit-item" data-field="name" data-item-id="${item.id}" /></td>
         <td><input type="number" min="0" value="${item.price}" data-action="edit-item" data-field="price" data-item-id="${item.id}" /></td>
@@ -241,7 +250,7 @@
         <td class="row-actions">
           <button class="btn-icon" data-action="move-item-up" data-item-id="${item.id}" data-category-id="${cat.id}">↑</button>
           <button class="btn-icon" data-action="move-item-down" data-item-id="${item.id}" data-category-id="${cat.id}">↓</button>
-          <button class="btn-icon danger" data-action="delete-item" data-item-id="${item.id}">🗑</button>
+          <button class="btn-icon danger" data-action="delete-item" data-item-id="${item.id}">${ICON_TRASH}</button>
         </td>
       </tr>`
       )
@@ -253,7 +262,7 @@
           <input type="text" value="${escapeHtml(cat.name)}" data-action="rename-category" data-category-id="${cat.id}" />
           <button class="btn-icon" data-action="move-category-up" data-category-id="${cat.id}">↑</button>
           <button class="btn-icon" data-action="move-category-down" data-category-id="${cat.id}">↓</button>
-          <button class="btn-icon danger" data-action="delete-category" data-category-id="${cat.id}">🗑 Eliminar categoría</button>
+          <button class="btn-icon danger" data-action="delete-category" data-category-id="${cat.id}">${ICON_TRASH} Eliminar categoría</button>
         </div>
         <div class="table-scroll">
           <table class="items-table">
@@ -439,7 +448,7 @@
         <div class="row-actions">
           <button class="btn-icon" data-action="move-slide-up" data-slide-id="${slide.id}">↑</button>
           <button class="btn-icon" data-action="move-slide-down" data-slide-id="${slide.id}">↓</button>
-          <button class="btn-icon danger" data-action="delete-slide" data-slide-id="${slide.id}">🗑</button>
+          <button class="btn-icon danger" data-action="delete-slide" data-slide-id="${slide.id}">${ICON_TRASH}</button>
         </div>
       </div>`;
   }
@@ -520,9 +529,18 @@
   });
 
   // ---------------- Pantallas (perfiles, mosaico, arrastrar y acomodar) ----------------
+  // El lienzo se inspira en "Configuración de pantallas" de Windows: cada TV
+  // es un rectángulo simple sobre un fondo neutro (sin grilla visible), se
+  // levanta y mueve con el mouse, y al soltarla se acomoda sola a la celda
+  // más cercana — la grilla existe solo como matemática interna para el modo
+  // mosaico, nunca se dibuja.
   const profilesList = document.getElementById('profiles-list');
   const MODE_LABELS = { independent: 'Independiente', mosaic: 'Mosaico (una imagen repartida)' };
+  const TILE_COL_PITCH = 124;
+  const TILE_ROW_PITCH = 82;
+  const TILE_MARGIN = 10;
   let profilesState = [];
+  let selectedScreenId = null;
 
   async function loadProfiles() {
     try {
@@ -533,26 +551,37 @@
     }
   }
 
-  function screenBoxHtml(screen, mode) {
-    const left = (screen.position_col ?? 0) * 96;
-    const top = (screen.position_row ?? 0) * 96;
+  function screenTileHtml(screen, isSelected) {
+    const left = TILE_MARGIN + (screen.position_col ?? 0) * TILE_COL_PITCH;
+    const top = TILE_MARGIN + (screen.position_row ?? 0) * TILE_ROW_PITCH;
     return `
-      <div class="screen-box" draggable="true" data-screen-id="${screen.id}" style="left:${left}px; top:${top}px;">
-        <div class="screen-box__name" title="${escapeHtml(screen.name)}">${escapeHtml(screen.name)}</div>
-        <div class="screen-box__url">/player/${screen.id}</div>
-        <div class="screen-box__actions">
+      <div class="screen-tile${isSelected ? ' is-selected' : ''}" data-screen-id="${screen.id}" style="left:${left}px; top:${top}px;">
+        <div class="screen-tile__name" title="${escapeHtml(screen.name)}">${escapeHtml(screen.name)}</div>
+      </div>`;
+  }
+
+  function screenDetailHtml(screen, mode) {
+    return `
+      <div class="screen-detail">
+        <div class="screen-detail__info">
+          <input type="text" class="screen-detail__name" value="${escapeHtml(screen.name)}" data-action="screen-rename" data-screen-id="${screen.id}" />
+          <span class="screen-detail__path">/player/${screen.id}</span>
+        </div>
+        <div class="screen-detail__actions">
           ${
             mode === 'independent'
-              ? `<button type="button" data-action="edit-screen-playlist" data-screen-id="${screen.id}">Editar cola</button>`
+              ? `<button type="button" class="btn-icon" data-action="edit-screen-playlist" data-screen-id="${screen.id}">Editar cola</button>`
               : ''
           }
-          <button type="button" class="danger" data-action="delete-screen" data-screen-id="${screen.id}">Eliminar</button>
+          <button type="button" class="btn-icon danger" data-action="delete-screen" data-screen-id="${screen.id}">${ICON_TRASH} Eliminar</button>
         </div>
       </div>`;
   }
 
   function profileCardHtml(profile) {
-    const screensHtml = (profile.screens || []).map((s) => screenBoxHtml(s, profile.mode)).join('');
+    const screens = profile.screens || [];
+    const selected = screens.find((s) => s.id === selectedScreenId);
+    const tilesHtml = screens.map((s) => screenTileHtml(s, s.id === selectedScreenId)).join('');
     const modeOptions = Object.keys(MODE_LABELS)
       .map((key) => `<option value="${key}" ${profile.mode === key ? 'selected' : ''}>${MODE_LABELS[key]}</option>`)
       .join('');
@@ -573,36 +602,73 @@
         <div class="category-card__header profile-card__header">
           <input type="text" class="profile-name-input" value="${escapeHtml(profile.name)}" data-action="profile-rename" data-profile-id="${profile.id}" />
           <select data-action="profile-mode" data-profile-id="${profile.id}">${modeOptions}</select>
-          <button type="button" class="btn-icon danger" data-action="delete-profile" data-profile-id="${profile.id}">🗑 Eliminar perfil</button>
+          <button type="button" class="btn-icon danger" data-action="delete-profile" data-profile-id="${profile.id}">${ICON_TRASH} Eliminar perfil</button>
         </div>
         ${mosaicUpload}
-        <div class="screens-canvas" data-profile-id="${profile.id}">${screensHtml}</div>
+        <div class="screens-canvas" data-profile-id="${profile.id}">
+          ${tilesHtml || '<p class="screens-canvas__empty">Sin pantallas todavía</p>'}
+        </div>
+        ${selected ? screenDetailHtml(selected, profile.mode) : ''}
         <button type="button" class="btn-icon" data-action="add-screen" data-profile-id="${profile.id}">+ Nueva pantalla</button>
       </div>`;
   }
 
+  // Arrastre por mouse/touch con umbral de movimiento: si el puntero no se
+  // mueve más de unos pixeles, se trata como un click (seleccionar la
+  // pantalla, no moverla). Al soltar tras arrastrar de verdad, se acomoda
+  // sola a la celda de grilla más cercana y se guarda esa posición.
   function wireScreenDragAndDrop() {
-    document.querySelectorAll('.screen-box').forEach((box) => {
-      box.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', box.dataset.screenId);
-      });
-    });
-    document.querySelectorAll('.screens-canvas').forEach((canvas) => {
-      canvas.addEventListener('dragover', (e) => e.preventDefault());
-      canvas.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        const screenId = e.dataTransfer.getData('text/plain');
-        if (!screenId) return;
-        const rect = canvas.getBoundingClientRect();
-        const cellSize = 96;
-        const col = Math.max(0, Math.round((e.clientX - rect.left - 40) / cellSize));
-        const row = Math.max(0, Math.round((e.clientY - rect.top - 40) / cellSize));
-        try {
-          await api('PUT', `/api/screens/${screenId}`, { position_row: row, position_col: col });
-          await loadProfiles();
-        } catch (err) {
-          showToast(err.message, true);
+    document.querySelectorAll('.screen-tile').forEach((tile) => {
+      const canvas = tile.closest('.screens-canvas');
+      tile.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLeft = tile.offsetLeft;
+        const startTop = tile.offsetTop;
+        let dragging = false;
+        tile.setPointerCapture(e.pointerId);
+
+        function onMove(ev) {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          if (!dragging && Math.hypot(dx, dy) > 4) {
+            dragging = true;
+            tile.classList.add('is-dragging');
+          }
+          if (!dragging) return;
+          const maxLeft = canvas.clientWidth - tile.offsetWidth - TILE_MARGIN;
+          const maxTop = canvas.clientHeight - tile.offsetHeight - TILE_MARGIN;
+          tile.style.left = `${Math.max(TILE_MARGIN, Math.min(maxLeft, startLeft + dx))}px`;
+          tile.style.top = `${Math.max(TILE_MARGIN, Math.min(maxTop, startTop + dy))}px`;
         }
+
+        async function onUp() {
+          tile.removeEventListener('pointermove', onMove);
+          tile.removeEventListener('pointerup', onUp);
+          tile.classList.remove('is-dragging');
+
+          if (!dragging) {
+            const screenId = Number(tile.dataset.screenId);
+            selectedScreenId = selectedScreenId === screenId ? null : screenId;
+            renderProfiles();
+            return;
+          }
+
+          const col = Math.max(0, Math.round((tile.offsetLeft - TILE_MARGIN) / TILE_COL_PITCH));
+          const row = Math.max(0, Math.round((tile.offsetTop - TILE_MARGIN) / TILE_ROW_PITCH));
+          tile.style.left = `${TILE_MARGIN + col * TILE_COL_PITCH}px`;
+          tile.style.top = `${TILE_MARGIN + row * TILE_ROW_PITCH}px`;
+          try {
+            await api('PUT', `/api/screens/${tile.dataset.screenId}`, { position_row: row, position_col: col });
+            await loadProfiles();
+          } catch (err) {
+            showToast(err.message, true);
+          }
+        }
+
+        tile.addEventListener('pointermove', onMove);
+        tile.addEventListener('pointerup', onUp);
       });
     });
   }
@@ -630,6 +696,7 @@
       } else if (action === 'delete-screen') {
         if (!(await showConfirm('¿Eliminar esta pantalla? Se borra también su cola de carteles.'))) return;
         await api('DELETE', `/api/screens/${btn.dataset.screenId}`);
+        selectedScreenId = null;
         await loadProfiles();
         await populateScreenSelects();
       } else if (action === 'edit-screen-playlist') {
@@ -656,6 +723,11 @@
         await loadProfiles();
       } else if (action === 'profile-rename') {
         await api('PUT', `/api/profiles/${target.dataset.profileId}`, { name: target.value });
+      } else if (action === 'screen-rename') {
+        selectedScreenId = Number(target.dataset.screenId);
+        await api('PUT', `/api/screens/${target.dataset.screenId}`, { name: target.value });
+        await loadProfiles();
+        await populateScreenSelects();
       } else if (action === 'upload-mosaic') {
         const file = target.files[0];
         if (!file) return;
@@ -982,7 +1054,7 @@
     }
     const labels = { samsung: 'Samsung (Tizen)', android: 'Android/Google TV/Fire TV' };
     container.innerHTML = devices
-      .map((d) => `<button type="button" class="btn-icon" data-ip="${d.ip}">📺 ${d.ip} — ${labels[d.type] || d.type}</button>`)
+      .map((d) => `<button type="button" class="btn-icon" data-ip="${d.ip}">${ICON_TV_SMALL} ${d.ip} — ${labels[d.type] || d.type}</button>`)
       .join(' ');
     container.querySelectorAll('button[data-ip]').forEach((btn) => {
       btn.addEventListener('click', () => onPick(btn.dataset.ip));

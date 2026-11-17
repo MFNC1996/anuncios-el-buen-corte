@@ -4,9 +4,12 @@
 :root {
   --ebc-ink: #1b1b1f;
   --ebc-ink-soft: #5a5a66;
+  --ebc-ink-faint: #8c8c99;
   --ebc-paper: #f4f4f7;
   --ebc-surface: #ffffff;
   --ebc-border: #dcdce4;
+  --ebc-line: #ececf1;
+  --ebc-canvas: #eef0f3;
 
   /* El rojo legible (--ebc-red) es el del texto e interfaz; el vivo
      (--ebc-red-vivid) es el de la rotulación de marca, reservado para lo que

@@ -110,7 +110,10 @@
 
       <details class="tv-method" open>
         <summary>
-          <span class="tv-method__title">📶 Android TV / Google TV / Fire TV Stick</span>
+          <span class="tv-method__title">
+            <svg class="tv-method__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>
+            Android TV / Google TV / Fire TV Stick
+          </span>
           <span class="tag-recommended">Recomendado</span>
         </summary>
         <div class="tv-method__body">
@@ -143,7 +146,7 @@
                 <input type="text" id="android-tv-ip" placeholder="192.168.1.42" />
               </label>
             </div>
-            <button id="android-scan" type="button" class="btn-icon">🔎 Buscar TVs en la red</button>
+            <button id="android-scan" type="button" class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg> Buscar TVs en la red</button>
             <div id="android-scan-results"></div>
           </div>
 
@@ -175,7 +178,10 @@
 
       <details class="tv-method">
         <summary>
-          <span class="tv-method__title">📡 TV Samsung (Tizen) — instalación automática</span>
+          <span class="tv-method__title">
+            <svg class="tv-method__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+            TV Samsung (Tizen) — instalación automática
+          </span>
         </summary>
         <div class="tv-method__body">
           <p>Lo único que se toca en el control remoto de la TV: activar el Modo Desarrollador y anotar su
@@ -212,7 +218,7 @@
                 <input type="text" id="tizen-server-ip" placeholder="192.168.1.50" />
               </label>
             </div>
-            <button id="tizen-scan" type="button" class="btn-icon">🔎 Buscar TVs en la red</button>
+            <button id="tizen-scan" type="button" class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg> Buscar TVs en la red</button>
             <div id="tizen-scan-results"></div>
           </div>
 
@@ -258,10 +264,17 @@
 
   <div id="preview-widget" class="preview-widget">
     <div class="preview-widget__header">
-      <span>📺 Vista previa en vivo</span>
+      <span class="preview-widget__title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        Vista previa en vivo
+      </span>
       <div class="preview-widget__actions">
-        <a href="/player/1" target="_blank" rel="noopener" title="Abrir a pantalla completa">⤢</a>
-        <button id="preview-toggle" type="button" title="Minimizar">—</button>
+        <a href="/player/1" target="_blank" rel="noopener" title="Abrir a pantalla completa">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        </a>
+        <button id="preview-toggle" type="button" title="Minimizar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        </button>
       </div>
     </div>
     <div class="preview-widget__body">
@@ -273,9 +286,14 @@
 
   <div id="qr-widget" class="preview-widget qr-widget">
     <div class="preview-widget__header">
-      <span>📱 Acceso desde el celular</span>
+      <span class="preview-widget__title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
+        Acceso desde el celular
+      </span>
       <div class="preview-widget__actions">
-        <button id="qr-toggle" type="button" title="Minimizar">—</button>
+        <button id="qr-toggle" type="button" title="Minimizar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        </button>
       </div>
     </div>
     <div class="preview-widget__body">

@@ -184,7 +184,35 @@ function ensureDefaultProfile() {
   db.prepare('UPDATE screens SET profile_id = ? WHERE profile_id IS NULL').run(defaultProfileId);
 }
 
+// Las pantallas creadas antes de que existiera el lienzo de arrastre (la
+// única TV que ya tenía cualquier local real) se quedaron con
+// position_row/position_col en NULL. Sin esto, todas esas pantallas sin
+// posición "caen" en (0,0) a la vez en el lienzo — y ahí se tapan entre sí
+// apenas se agrega una segunda pantalla al mismo perfil. Se les asigna la
+// primera celda libre de su perfil, respetando las que ya tienen posición.
+function ensureScreenPositions() {
+  const screens = db.prepare('SELECT id, profile_id, position_row, position_col FROM screens ORDER BY id').all();
+  const usedByProfile = new Map();
+  screens.forEach((s) => {
+    if (s.position_row === null || s.position_col === null) return;
+    if (!usedByProfile.has(s.profile_id)) usedByProfile.set(s.profile_id, new Set());
+    usedByProfile.get(s.profile_id).add(`${s.position_row},${s.position_col}`);
+  });
+
+  const update = db.prepare('UPDATE screens SET position_row = 0, position_col = ? WHERE id = ?');
+  screens.forEach((s) => {
+    if (s.position_row !== null && s.position_col !== null) return;
+    if (!usedByProfile.has(s.profile_id)) usedByProfile.set(s.profile_id, new Set());
+    const used = usedByProfile.get(s.profile_id);
+    let col = 0;
+    while (used.has(`0,${col}`)) col += 1;
+    used.add(`0,${col}`);
+    update.run(col, s.id);
+  });
+}
+
 seedIfEmpty();
 ensureDefaultProfile();
+ensureScreenPositions();
 
 module.exports = db;

@@ -131,22 +131,36 @@ main {
 }
 
 .hint {
-  background: #fdf1d8;
-  border: 1px solid #f0d79b;
-  color: #6b5010;
-  padding: 0.65rem 0.9rem;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  margin-bottom: 1rem;
+  position: relative;
+  color: var(--ebc-ink-soft);
+  padding: 0.1rem 0 1.1rem 1.35rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+.hint::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.2rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--ebc-green);
+  opacity: 0.55;
 }
 
 .btn {
   border: none;
-  border-radius: 8px;
-  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  padding: 0.6rem 1.1rem;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn-primary {
@@ -181,12 +195,22 @@ main {
 .btn-icon {
   background: var(--ebc-surface);
   border: 1px solid var(--ebc-border);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  color: var(--ebc-ink-soft);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.btn-icon:hover {
+  border-color: var(--ebc-ink-faint);
+  color: var(--ebc-ink);
 }
 .btn-icon.danger {
+  border-color: var(--ebc-border);
+  color: var(--ebc-ink-faint);
+}
+.btn-icon.danger:hover {
   border-color: var(--ebc-red);
   color: var(--ebc-red);
 }
@@ -194,7 +218,7 @@ main {
 /* ---- Categorías / productos: tarjetas iguales a .tarjeta del POS ---- */
 .category-card {
   background: var(--ebc-surface);
-  border: 1px solid var(--ebc-border);
+  border: 1px solid var(--ebc-line);
   border-radius: var(--ebc-radius);
   box-shadow: var(--ebc-shadow);
   margin-bottom: 1.25rem;
@@ -206,9 +230,8 @@ main {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  background: var(--ebc-paper);
-  padding: 0.6rem 1rem;
-  border-bottom: 1px solid var(--ebc-border);
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--ebc-line);
 }
 
 .category-card__header input[type='text'] {
@@ -486,32 +509,42 @@ main {
   justify-content: space-between;
   background: var(--ebc-red);
   color: var(--ebc-surface);
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.7rem;
   font-size: 0.8rem;
   font-weight: 600;
   border-bottom: 3px solid var(--ebc-green);
 }
 
+.preview-widget__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .preview-widget__actions {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.2rem;
 }
 
 .preview-widget__actions a,
 .preview-widget__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
   background: transparent;
   border: none;
+  border-radius: 6px;
   color: var(--ebc-surface);
   cursor: pointer;
-  font-size: 0.95rem;
   line-height: 1;
-  padding: 0.1rem 0.3rem;
   text-decoration: none;
 }
 .preview-widget__actions a:hover,
 .preview-widget__actions button:hover {
-  opacity: 0.75;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .preview-widget__body {
@@ -601,29 +634,43 @@ main {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.85rem 1.1rem;
-  background: var(--ebc-paper);
+  gap: 0.7rem;
+  padding: 0.95rem 1.1rem;
   font-weight: 700;
+  transition: background-color 0.15s ease;
 }
 .tv-method summary::-webkit-details-marker {
   display: none;
 }
 .tv-method summary::before {
-  content: '▸';
-  color: var(--ebc-red);
-  font-size: 0.9rem;
+  content: '';
+  width: 0;
+  height: 0;
+  flex: 0 0 auto;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--ebc-ink-faint);
   transition: transform 0.15s ease;
 }
 .tv-method[open] summary::before {
   transform: rotate(90deg);
 }
 .tv-method summary:hover {
-  background: #efe9e9;
+  background: var(--ebc-paper);
+}
+.tv-method[open] summary {
+  border-bottom: 1px solid var(--ebc-line);
 }
 
 .tv-method__title {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.tv-method__icon {
+  flex: 0 0 auto;
+  color: var(--ebc-red);
 }
 
 .tag-recommended {
@@ -694,6 +741,13 @@ main {
   font-weight: 600;
   color: var(--ebc-green);
 }
+/* El "display: inline-flex" de arriba gana contra la regla por defecto del
+   navegador para [hidden] (esa es de origen "user-agent", siempre pierde
+   contra una regla de autor) — sin esto, "Trabajando..." quedaba visible
+   todo el tiempo aunque no hubiera ningún trabajo corriendo. */
+.job-spinner[hidden] {
+  display: none;
+}
 .job-spinner__ring {
   width: 0.9rem;
   height: 0.9rem;
@@ -728,76 +782,151 @@ main {
   background: var(--ebc-red);
 }
 
-/* ---- Pantallas: perfiles y lienzo de arrastre ---- */
+/* ---- Pantallas: perfiles y lienzo de arrastre ----
+   Inspirado en "Configuración de pantallas" de Windows: un lienzo neutro sin
+   grilla ni líneas, cada TV es un rectángulo simple que se puede levantar y
+   mover con el mouse/dedo, y al soltarla se acomoda sola a la posición más
+   cercana (sin que el usuario tenga que ver esa grilla mientras arrastra). */
 .profile-card {
   margin-bottom: 1.5rem;
+}
+.profile-card__header {
+  gap: 0.6rem;
 }
 .profile-card__header select {
   flex: 0 0 auto;
 }
+.profile-name-input {
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ebc-ink);
+  padding: 0.2rem 0.3rem;
+  border-radius: 6px;
+  flex: 1;
+  min-width: 100px;
+}
+.profile-name-input:hover {
+  background: var(--ebc-paper);
+}
+.profile-name-input:focus {
+  outline: none;
+  background: var(--ebc-paper);
+  box-shadow: inset 0 0 0 1.5px var(--ebc-green);
+}
+
 .screens-canvas {
   position: relative;
-  min-height: 220px;
+  min-height: 190px;
   margin: 1rem;
-  background: repeating-linear-gradient(
-      0deg,
-      var(--ebc-border) 0,
-      var(--ebc-border) 1px,
-      transparent 1px,
-      transparent 96px
-    ),
-    repeating-linear-gradient(90deg, var(--ebc-border) 0, var(--ebc-border) 1px, transparent 1px, transparent 96px);
-  background-color: var(--ebc-paper);
-  border-radius: 8px;
-  border: 1px dashed var(--ebc-border);
+  padding: 1.25rem;
+  background: var(--ebc-canvas);
+  border-radius: var(--ebc-radius);
 }
-.screen-box {
+.screens-canvas__empty {
   position: absolute;
-  width: 84px;
-  height: 84px;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ebc-ink-faint);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.screen-tile {
+  position: absolute;
+  width: 108px;
+  height: 66px;
   background: var(--ebc-surface);
-  border: 2px solid var(--ebc-green);
+  border: 1px solid var(--ebc-border);
   border-radius: 8px;
-  box-shadow: var(--ebc-shadow);
-  padding: 0.4rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   cursor: grab;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  text-align: center;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
+  touch-action: none;
+  user-select: none;
 }
-.screen-box:active {
+.screen-tile::after {
+  /* El "pie" del monitor, para que se lea como una pantalla y no como una
+     tarjeta cualquiera. */
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 7px;
+  background: var(--ebc-border);
+  border-radius: 0 0 4px 4px;
+}
+.screen-tile:hover {
+  border-color: var(--ebc-ink-faint);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.screen-tile.is-selected {
+  border-color: var(--ebc-red);
+  box-shadow: 0 0 0 2px rgba(165, 18, 58, 0.18);
+}
+.screen-tile.is-dragging {
   cursor: grabbing;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  z-index: 5;
+  transition: none;
 }
-.screen-box__name {
-  font-weight: 700;
-  color: var(--ebc-red);
+.screen-tile__name {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--ebc-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
-.screen-box__url {
-  color: var(--ebc-ink-soft);
-  font-size: 0.65rem;
-}
-.screen-box__actions {
-  margin-top: auto;
+
+/* ---- Detalle de la pantalla seleccionada (debajo del lienzo, no adentro
+   del rectángulo chico — así no hay que leer letra diminuta) ---- */
+.screen-detail {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 1rem 1rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--ebc-paper);
+  border-radius: var(--ebc-radius);
 }
-.screen-box__actions button {
-  font-size: 0.65rem;
+.screen-detail__info {
+  flex: 1;
+  min-width: 140px;
+}
+.screen-detail__name {
+  display: block;
+  width: 100%;
   border: none;
-  background: none;
-  color: var(--ebc-green);
-  cursor: pointer;
-  padding: 0;
-  text-align: left;
+  background: transparent;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ebc-ink);
+  padding: 0.15rem 0;
 }
-.screen-box__actions button.danger {
-  color: var(--ebc-red);
+.screen-detail__name:focus {
+  outline: none;
+}
+.screen-detail__path {
+  color: var(--ebc-ink-faint);
+  font-size: 0.76rem;
+}
+.screen-detail__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 /* ---- Cuadros propios en vez de confirm()/prompt() del navegador ---- */
