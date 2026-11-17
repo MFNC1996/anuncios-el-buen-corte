@@ -4,7 +4,7 @@ const fs = require('fs');
 const express = require('express');
 const { broadcast } = require('../ws');
 const { detectServerIp } = require('../network-info');
-const { spawnSafe, execFileSafe } = require('../spawn-safe');
+const { spawnSafe, execFileSafe, killTree } = require('../spawn-safe');
 const jobLock = require('../job-lock');
 
 const router = express.Router();
@@ -45,7 +45,12 @@ async function commandExists(cmd, env) {
 }
 
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
-const DEPLOY_TIMEOUT_MS = 2 * 60 * 1000;
+// El chequeo preventivo de tizen/sdb al principio de deploy() puede tardar
+// hasta ~53s por sí solo si el PC recién prendió (ver commandExists) — con
+// el límite viejo de 2 minutos, eso dejaba muy poco margen para empaquetar,
+// conectar e instalar de verdad, y un deploy que iba a funcionar terminaba
+// cortado por el timeout general antes de completarse.
+const DEPLOY_TIMEOUT_MS = 4 * 60 * 1000;
 const SDK_INSTALL_TIMEOUT_MS = 40 * 60 * 1000;
 const DEPLOY_LABEL = 'tizen-deploy';
 const SDK_LABEL = 'tizen-install-sdk';
@@ -221,6 +226,13 @@ async function installWgt(wgtPath, deviceId, tvIp, env, cancelToken) {
   try {
     await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
   } catch (err) {
+    // Si el segundo intento falló por un motivo DISTINTO (ej. el deploy se
+    // canceló por el timeout general mientras este reintento estaba en
+    // curso, o un error real de tizen como un certificado vencido), hay
+    // que mostrar ESE error — culpar siempre a la TV/PC con un mensaje fijo
+    // tapaba la causa real y mandaba a reiniciar hardware que nunca fue el
+    // problema.
+    if (!/there is no .*target/i.test(err.output || err.message || '')) throw err;
     throw new Error(
       '"tizen install" sigue sin reconocer la TV aunque sdb la ve conectada (revisa el registro de arriba). ' +
         'No es un problema de red — probablemente haga falta reiniciar la TV y el PC, o instalar esta versión ' +
@@ -242,7 +254,12 @@ function runTrackedJob({ label, timeoutMs, doneEvent, logEvent, fn }) {
 
   const timeoutId = setTimeout(() => {
     cancelToken.cancelled = true;
-    if (cancelToken.activeChild?.kill) cancelToken.activeChild.kill();
+    // killTree en vez de .kill(): en Windows (shell:true) el child de
+    // spawnSafe es el cmd.exe envoltorio, no el java.exe real de
+    // tizen/sdb — matar solo el envoltorio dejaba el proceso real
+    // corriendo de fondo con BUILD_DIR abierto, y un reintento inmediato
+    // fallaba con un EBUSY/EPERM sin relación aparente con la TV.
+    if (cancelToken.activeChild) killTree(cancelToken.activeChild);
     finish(false, `Cancelado — tardó más de ${timeoutMs / 1000}s.`);
   }, timeoutMs);
 

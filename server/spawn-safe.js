@@ -35,4 +35,22 @@ function execFileSafe(cmd, args = [], options = {}, callback) {
   );
 }
 
-module.exports = { spawnSafe, execFileSafe };
+// child.kill() de spawnSafe en Windows solo mata el cmd.exe envoltorio (por
+// shell:true) — el proceso real (tizen.bat → java.exe, npm.cmd → node.exe,
+// etc.) queda huérfano corriendo de fondo, a veces con archivos abiertos que
+// hacen fallar el siguiente intento con un EBUSY/EPERM que no tiene nada que
+// ver con la causa real. "taskkill /T" mata todo el árbol de procesos bajo
+// ese PID, no solo el de arriba.
+function killTree(child) {
+  if (!child || !child.pid) return;
+  if (!isWindows) {
+    child.kill();
+    return;
+  }
+  execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => {
+    // Si ya había terminado solo, taskkill devuelve error — no hay nada
+    // más que hacer en ese caso.
+  });
+}
+
+module.exports = { spawnSafe, execFileSafe, killTree };

@@ -5,7 +5,7 @@ const express = require('express');
 const multer = require('multer');
 const { broadcast } = require('../ws');
 const { detectServerIp } = require('../network-info');
-const { spawnSafe } = require('../spawn-safe');
+const { spawnSafe, killTree } = require('../spawn-safe');
 const jobLock = require('../job-lock');
 
 const router = express.Router();
@@ -27,9 +27,10 @@ router.get('/check', (req, res) => {
 // correr — adb no siempre refleja el éxito real en su código de salida
 // (connect/am start suelen devolver 0 incluso cuando fallan), así que cada
 // caller decide si además necesita revisar el texto de salida.
-function runAdb(args, logEvent = 'android:log') {
+function runAdb(args, logEvent = 'android:log', cancelToken) {
   return new Promise((resolve, reject) => {
     const child = spawnSafe(ADB_EXE, args);
+    if (cancelToken) cancelToken.activeChild = child;
     let output = '';
     const forward = (data) => {
       output += data.toString();
@@ -53,8 +54,17 @@ function runAdb(args, logEvent = 'android:log') {
 function runTrackedJob({ label, doneEvent, logEvent, fn }) {
   if (!jobLock.tryAcquire(label)) return false;
 
+  // `cancelToken.activeChild` deja rastro del proceso de adb que esté
+  // corriendo en este momento preciso, para poder matarlo DE VERDAD (no
+  // solo dejar de esperarlo) si el timeout se cumple — sin esto, un "adb
+  // connect" colgado contra una TV que descarta paquetes en silencio
+  // seguía corriendo de fondo después de que el panel ya mostraba el error,
+  // y un reintento inmediato lanzaba un segundo adb en paralelo con el
+  // primero, mezclando la salida de ambos en el mismo registro.
+  const cancelToken = { activeChild: null };
   let settled = false;
   const timeoutId = setTimeout(() => {
+    if (cancelToken.activeChild) killTree(cancelToken.activeChild);
     finish(false, `Cancelado — tardó más de ${JOB_TIMEOUT_MS / 1000}s.`);
   }, JOB_TIMEOUT_MS);
 
@@ -67,17 +77,17 @@ function runTrackedJob({ label, doneEvent, logEvent, fn }) {
     jobLock.release(label);
   }
 
-  fn()
+  fn(cancelToken)
     .then((success = true) => finish(success))
     .catch((err) => finish(false, `Error: ${err.message}`));
 
   return true;
 }
 
-async function deploy(tvIp, playerUrl) {
+async function deploy(tvIp, playerUrl, cancelToken) {
   const target = `${tvIp}:5555`;
   broadcast('android:log', { line: `==> Conectando a ${target}...` });
-  const { output } = await runAdb(['connect', target]);
+  const { output } = await runAdb(['connect', target], 'android:log', cancelToken);
   if (!/connected/i.test(output)) {
     throw new Error(
       'No se pudo conectar. Revisa que la depuración por red/USB esté activada en la TV y que la IP sea correcta.'
@@ -85,7 +95,11 @@ async function deploy(tvIp, playerUrl) {
   }
 
   broadcast('android:log', { line: `==> Abriendo ${playerUrl} en la TV...` });
-  const start = await runAdb(['-s', target, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', playerUrl]);
+  const start = await runAdb(
+    ['-s', target, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', playerUrl],
+    'android:log',
+    cancelToken
+  );
   if (start.code !== 0 || /error/i.test(start.output)) {
     throw new Error('La TV no abrió la cartelera. Revisa que haya un navegador/Fully Kiosk instalado.');
   }
@@ -105,7 +119,7 @@ router.post('/deploy', (req, res) => {
     label: 'android-deploy',
     doneEvent: 'android:done',
     logEvent: 'android:log',
-    fn: () => deploy(tvIp, playerUrl),
+    fn: (cancelToken) => deploy(tvIp, playerUrl, cancelToken),
   });
 
   if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
@@ -116,23 +130,17 @@ router.post('/deploy', (req, res) => {
 // Fire TV Stick, que no tiene Play Store — ahí se sigue instalando a mano
 // por ADB, como ya explica la guía). No instala nada por sí solo: solo deja
 // la pantalla de instalar lista para apretar "Instalar" con el control.
-async function openPlayStore(tvIp) {
+async function openPlayStore(tvIp, cancelToken) {
   const target = `${tvIp}:5555`;
-  const { output: connectOutput } = await runAdb(['connect', target]);
+  const { output: connectOutput } = await runAdb(['connect', target], 'android:log', cancelToken);
   if (!/connected/i.test(connectOutput)) {
     throw new Error('No se pudo conectar a la TV. Revisa la IP y que la depuración por red esté activada.');
   }
-  const { output } = await runAdb([
-    '-s',
-    target,
-    'shell',
-    'am',
-    'start',
-    '-a',
-    'android.intent.action.VIEW',
-    '-d',
-    'market://details?id=de.ozerov.fully',
-  ]);
+  const { output } = await runAdb(
+    ['-s', target, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'market://details?id=de.ozerov.fully'],
+    'android:log',
+    cancelToken
+  );
   if (/error/i.test(output)) {
     throw new Error('La TV no abrió la Play Store (¿es un Fire TV Stick? esos no tienen Play Store).');
   }
@@ -148,7 +156,7 @@ router.post('/open-play-store', (req, res) => {
     label: 'android-open-store',
     doneEvent: 'android:done',
     logEvent: 'android:log',
-    fn: () => openPlayStore(tvIp),
+    fn: (cancelToken) => openPlayStore(tvIp, cancelToken),
   });
 
   if (!started) return res.status(409).json({ error: `Ya hay una operación en curso (${jobLock.currentLabel()})` });
@@ -190,15 +198,21 @@ router.post('/install-apk', apkUpload.single('apk'), (req, res) => {
     label: 'android-install-apk',
     doneEvent: 'android:done',
     logEvent: 'android:log',
-    fn: async () => {
-      await runAdb(['connect', target]);
-      const { code, output } = await runAdb(['-s', target, 'install', '-r', apkPath]);
-      cleanup();
-      const ok = code === 0 && /success/i.test(output);
-      broadcast('android:log', {
-        line: ok ? '==> Instalado correctamente.' : '==> La instalación no terminó en éxito, revisa el registro de arriba.',
-      });
-      return ok;
+    fn: async (cancelToken) => {
+      try {
+        await runAdb(['connect', target], 'android:log', cancelToken);
+        const { code, output } = await runAdb(['-s', target, 'install', '-r', apkPath], 'android:log', cancelToken);
+        const ok = code === 0 && /success/i.test(output);
+        broadcast('android:log', {
+          line: ok ? '==> Instalado correctamente.' : '==> La instalación no terminó en éxito, revisa el registro de arriba.',
+        });
+        return ok;
+      } finally {
+        // Antes, si "adb connect" fallaba al arrancar (ej. error ENOENT del
+        // propio proceso), cleanup() nunca se alcanzaba y el .apk subido
+        // (hasta 150MB) quedaba para siempre en la carpeta temporal.
+        cleanup();
+      }
     },
   });
 

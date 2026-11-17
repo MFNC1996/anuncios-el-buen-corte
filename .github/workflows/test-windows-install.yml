@@ -83,6 +83,7 @@ jobs:
           Copy-Item windows-installer\DESINSTALAR.bat package\
           Copy-Item windows-installer\start-hidden.vbs package\
           Copy-Item windows-installer\stop-server.vbs package\
+          Copy-Item windows-installer\make-shortcuts.ps1 package\
           Copy-Item windows-installer\reinstalar-dependencias.bat package\
           Copy-Item windows-installer\instalar-tizen-studio.bat package\
           Copy-Item windows-installer\LEEME.txt package\
@@ -124,6 +125,35 @@ jobs:
           }
           $reg = Get-ItemProperty -Path HKCU:\Software\CarteleraElBuenCorte -ErrorAction Stop
           Write-Host "OK: registro InstallDir = $($reg.InstallDir)"
+
+      - name: "Verificar que los accesos directos funcionan con espacios en la ruta (perfil tipo \"Juan Perez\")"
+        shell: pwsh
+        run: |
+          # Los .lnk ya existen porque el runner no tiene espacio en su perfil
+          # (no hubiera alcanzado para detectar este bug real: el acceso
+          # directo se CREABA igual, pero con la ruta guardada en "Arguments"
+          # sin comillas, asi que al abrirlo wscript.exe la partia en dos
+          # argumentos justo cuando el perfil de Windows tiene un espacio en
+          # el nombre). Se prueba aparte, armando accesos directos sobre una
+          # carpeta con espacio y confirmando que "Arguments" queda citado.
+          $spaceDir = "$env:RUNNER_TEMP\Carpeta Con Espacio"
+          $startMenuDir = "$spaceDir\StartMenu"
+          $startupDir = "$spaceDir\Startup"
+          $desktopDir = "$spaceDir\Desktop"
+          New-Item -ItemType Directory -Force -Path $spaceDir, $startMenuDir, $startupDir, $desktopDir | Out-Null
+          New-Item -ItemType File -Force -Path "$spaceDir\start-hidden.vbs" | Out-Null
+
+          & "windows-installer\make-shortcuts.ps1" -InstallDir $spaceDir -StartMenuDir $startMenuDir -StartupDir $startupDir -DesktopDir $desktopDir -AppName "Cartelera El Buen Corte"
+
+          $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut("$startupDir\Cartelera El Buen Corte.lnk")
+          Write-Host "Arguments guardados: $($lnk.Arguments)"
+          if ($lnk.Arguments -notmatch '^".*\.vbs"$') {
+            throw "El acceso directo no quedo con la ruta entre comillas: $($lnk.Arguments)"
+          }
+          if (-not (Test-Path ($lnk.Arguments -replace '^"|"$',''))) {
+            throw "La ruta citada no apunta al archivo real: $($lnk.Arguments)"
+          }
+          Write-Host "OK: los accesos directos funcionan con espacios en la ruta"
 
       - name: Verificar que el servidor realmente levanto
         shell: pwsh

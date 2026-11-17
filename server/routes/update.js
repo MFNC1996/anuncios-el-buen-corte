@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const express = require('express');
 const AdmZip = require('adm-zip');
 const { broadcast } = require('../ws');
-const { spawnSafe } = require('../spawn-safe');
+const { spawnSafe, killTree } = require('../spawn-safe');
 const jobLock = require('../job-lock');
 
 const router = express.Router();
@@ -88,7 +88,12 @@ function runStep(cmd, args, options) {
     const child = spawnSafe(cmd, args, options);
 
     const timeoutId = setTimeout(() => {
-      child.kill();
+      // child.kill() solo mataba el cmd.exe envoltorio en Windows (por
+      // shell:true) — "npm install" real (y el node-gyp/node que lanza
+      // adentro) seguía corriendo y escribiendo en node_modules después de
+      // que esto ya había reportado el error, arriesgando un
+      // node_modules a medio escribir si se reintentaba enseguida.
+      killTree(child);
       reject(new Error(`"${cmd} ${args.join(' ')}" tardó más de ${NPM_INSTALL_TIMEOUT_MS / 1000}s y se canceló`));
     }, NPM_INSTALL_TIMEOUT_MS);
 

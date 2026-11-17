@@ -43,6 +43,23 @@ router.post('/', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM screens WHERE id = ?').get(info.lastInsertRowid));
 });
 
+// Si (perfil, fila, columna) ya lo ocupa otra pantalla, busca la primera
+// columna libre de esa fila en vez de dejar que las dos queden
+// superpuestas — mismo criterio que ensureScreenPositions() en db.js usa
+// para las pantallas migradas sin posición.
+function resolvePosition(profileId, row, col, excludeScreenId) {
+  const taken = new Set(
+    db
+      .prepare('SELECT position_row AS r, position_col AS c FROM screens WHERE profile_id = ? AND id != ?')
+      .all(profileId, excludeScreenId)
+      .map((s) => `${s.r},${s.c}`)
+  );
+  if (!taken.has(`${row},${col}`)) return { row, col };
+  let freeCol = col;
+  while (taken.has(`${row},${freeCol}`)) freeCol += 1;
+  return { row, col: freeCol };
+}
+
 router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM screens WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Pantalla no encontrada' });
@@ -53,14 +70,23 @@ router.put('/:id', (req, res) => {
     return res.status(400).json({ error: 'El perfil indicado no existe' });
   }
 
+  const nextProfileId = profile_id !== undefined ? profile_id : existing.profile_id;
+  let nextRow = position_row !== undefined ? position_row : existing.position_row;
+  let nextCol = position_col !== undefined ? position_col : existing.position_col;
+  if (position_row !== undefined || position_col !== undefined || profile_id !== undefined) {
+    const resolved = resolvePosition(nextProfileId, nextRow ?? 0, nextCol ?? 0, req.params.id);
+    nextRow = resolved.row;
+    nextCol = resolved.col;
+  }
+
   db.prepare(
     `UPDATE screens SET name = ?, profile_id = ?, active_playlist_id = ?, position_row = ?, position_col = ? WHERE id = ?`
   ).run(
     name !== undefined ? name.trim() : existing.name,
-    profile_id !== undefined ? profile_id : existing.profile_id,
+    nextProfileId,
     active_playlist_id !== undefined ? active_playlist_id : existing.active_playlist_id,
-    position_row !== undefined ? position_row : existing.position_row,
-    position_col !== undefined ? position_col : existing.position_col,
+    nextRow,
+    nextCol,
     req.params.id
   );
 
@@ -76,6 +102,20 @@ router.delete('/:id', (req, res) => {
   if (screenCount <= 1) return res.status(400).json({ error: 'No se puede eliminar la única pantalla' });
 
   db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
+
+  // La playlist se creó exclusivamente para esta pantalla (POST / arriba
+  // siempre arma una nueva) — sin esto, quedaba huérfana para siempre junto
+  // con todos sus carteles, acumulándose sin límite en una base de datos
+  // que nadie más va a revisar en un PC sin mantenimiento.
+  if (existing.active_playlist_id) {
+    const stillUsed = db
+      .prepare('SELECT COUNT(*) AS c FROM screens WHERE active_playlist_id = ?')
+      .get(existing.active_playlist_id).c;
+    if (stillUsed === 0) {
+      db.prepare('DELETE FROM playlists WHERE id = ?').run(existing.active_playlist_id);
+    }
+  }
+
   broadcast('profiles:changed', {});
   res.status(204).end();
 });

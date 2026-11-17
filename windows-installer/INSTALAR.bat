@@ -38,6 +38,7 @@ if exist "%SRC%\platform-tools" (
 )
 copy /y "%SRC%\start-hidden.vbs" "%INSTALL_DIR%\start-hidden.vbs" >nul
 copy /y "%SRC%\stop-server.vbs" "%INSTALL_DIR%\stop-server.vbs" >nul
+copy /y "%SRC%\make-shortcuts.ps1" "%INSTALL_DIR%\make-shortcuts.ps1" >nul
 copy /y "%SRC%\reinstalar-dependencias.bat" "%INSTALL_DIR%\reinstalar-dependencias.bat" >nul
 copy /y "%SRC%\instalar-tizen-studio.bat" "%INSTALL_DIR%\instalar-tizen-studio.bat" >nul
 if exist "%SRC%\tizen-studio-installer.exe" (
@@ -67,13 +68,14 @@ if not "%NPM_RESULT%"=="0" (
 
 echo [3/5] Creando accesos directos...
 if not exist "%STARTMENU%" mkdir "%STARTMENU%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ws = New-Object -ComObject WScript.Shell;" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Cartelera El Buen Corte.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Detener Cartelera.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\stop-server.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTMENU%\Desinstalar.lnk'); $s.TargetPath = '%INSTALL_DIR%\DESINSTALAR.bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%USERPROFILE%\Desktop\Cartelera El Buen Corte.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();" ^
-  "$s = $ws.CreateShortcut('%STARTUP%\%APP_NAME%.lnk'); $s.TargetPath = '%WINDIR%\System32\wscript.exe'; $s.Arguments = '%INSTALL_DIR%\start-hidden.vbs'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = '%INSTALL_DIR%\app.ico'; $s.Save();"
+REM Antes esto era un bloque "powershell -Command "..." armado a mano con
+REM comillas simples de PowerShell anidadas dentro de comillas dobles de
+REM CMD — nunca quedaban comillas alrededor de la ruta guardada en
+REM "Arguments" del acceso directo, asi que si el perfil de Windows tenia
+REM un espacio en el nombre (ej. "Juan Perez"), el acceso directo nunca
+REM encontraba el script al abrirlo. Un .ps1 aparte recibe cada ruta como
+REM parametro normal de PowerShell y puede citarla bien.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_DIR%\make-shortcuts.ps1" -InstallDir "%INSTALL_DIR%" -StartMenuDir "%STARTMENU%" -StartupDir "%STARTUP%" -DesktopDir "%USERPROFILE%\Desktop" -AppName "%APP_NAME%"
 
 echo [4/5] Dejando registrado el programa...
 reg add "HKCU\Software\CarteleraElBuenCorte" /v InstallDir /t REG_SZ /d "%INSTALL_DIR%" /f >nul

@@ -20,8 +20,26 @@ serverJs = scriptDir & "\server\index.js"
 cmd = "cmd /c cd /d """ & scriptDir & """ && """ & nodeExe & """ """ & serverJs & """"
 objShell.Run cmd, 0, False
 
-' Espera a que el servidor termine de levantar antes de abrir la ventana.
-WScript.Sleep 2500
+' Espera a que el servidor termine de levantar antes de abrir la ventana —
+' probando de verdad que responda, no una pausa fija. Una pausa fija corta
+' (2.5s) alcanzaba casi siempre, pero fallaba justo en el peor momento: un
+' arranque lento del PC (antivirus revisando los archivos recien
+' instalados, varios programas de inicio compitiendo a la vez), que es
+' exactamente cuando alguien llega al local y mira el panel por primera vez
+' ese dia. Reintenta hasta 30 segundos antes de abrir la ventana igual.
+Dim http, attempt, ready
+Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+ready = False
+For attempt = 1 To 60
+  On Error Resume Next
+  http.Open "GET", adminUrl, False
+  http.Send
+  If Err.Number = 0 And http.Status > 0 Then ready = True
+  Err.Clear
+  On Error Goto 0
+  If ready Then Exit For
+  WScript.Sleep 500
+Next
 
 candidates = Array( _
   objShell.ExpandEnvironmentStrings("%ProgramFiles%\Google\Chrome\Application\chrome.exe"), _

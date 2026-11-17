@@ -398,10 +398,29 @@
     escapeHoldTimer = null;
   });
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Esta pantalla corre sola, sin nadie mirándola — si la primera carga
+  // falla (ej. el servidor admin todavía no terminó de arrancar, o un
+  // corte de red de un instante justo cuando la TV se prendió), antes se
+  // quedaba trabada para siempre: la excepción cortaba antes de llegar a
+  // connectWs(), así que ni siquiera la reconexión automática del
+  // WebSocket llegaba a entrar en juego. Ahora el WebSocket se conecta
+  // igual (no depende de que esto funcione) y la carga de contenido se
+  // reintenta sola hasta lograrlo.
   async function init() {
-    await loadContent();
-    await loadPlaylist();
     connectWs();
+    for (;;) {
+      try {
+        await loadContent();
+        await loadPlaylist();
+        return;
+      } catch (err) {
+        await sleep(3000);
+      }
+    }
   }
 
   init();
