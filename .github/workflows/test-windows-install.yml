@@ -170,7 +170,7 @@ jobs:
           if (-not $ok) { throw "El panel admin no respondio en http://localhost:4010/admin" }
           Write-Host "OK: /admin respondio 200"
 
-          $tizen = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
+          $tizen = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 15
           Write-Host "OK: /api/tizen/check respondio -> $($tizen | ConvertTo-Json -Compress)"
           if ($null -eq $tizen.ready) { throw "/api/tizen/check no devolvio el campo 'ready'" }
           if (-not $tizen.canAutoInstallSdk) { throw "canAutoInstallSdk deberia ser true (el .exe del SDK viene incluido)" }
@@ -201,7 +201,7 @@ jobs:
           $finished = $false
           for ($i = 0; $i -lt 550; $i++) {
             try {
-              $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
+              $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 15
               if (-not $status.busy) { $finished = $true; break }
             } catch {}
             Start-Sleep -Seconds 5
@@ -212,7 +212,7 @@ jobs:
             throw "install-sdk no termino despues de ~46 minutos"
           }
 
-          $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 5
+          $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 15
           if (-not $status.ready) {
             Write-Host "---- server\data\tizen.log ----"
             Get-Content "$env:LOCALAPPDATA\CarteleraElBuenCorte\server\data\tizen.log" -ErrorAction SilentlyContinue | Write-Host

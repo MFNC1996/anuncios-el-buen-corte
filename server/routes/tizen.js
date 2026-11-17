@@ -34,14 +34,23 @@ function execFileOnce(cmd, env, timeoutMs) {
 // en arrancar la primera vez, mucho más si el PC recién prendió y Windows
 // todavía está ocupado levantando el resto de programas de inicio (justo
 // el momento en que alguien llega al local, abre el panel y mira esta
-// pestaña). Con solo 10s de margen y un único intento, eso se confundía
-// con "las herramientas no están instaladas" y dejaba el botón de
-// instalar deshabilitado sin ninguna explicación clara. Ahora se espera
-// más tiempo y se reintenta una vez antes de darse por vencido.
+// pestaña). Esta versión "paciente" es para el único lugar donde una
+// respuesta falsa de "no está" realmente bloquea algo real: el chequeo
+// previo de deploy() antes de intentar instalar de verdad, y el sondeo de
+// que la instalación del SDK haya terminado.
 async function commandExists(cmd, env) {
   if (await execFileOnce(cmd, env, 25000)) return true;
   await sleep(3000);
   return execFileOnce(cmd, env, 25000);
+}
+
+// Versión rápida, de un solo intento, para /check: ese endpoint es puramente
+// informativo (el botón de instalar ya no se deshabilita por su resultado,
+// deploy() tiene su propio chequeo paciente antes de proceder de verdad), así
+// que no vale la pena que el panel (ni nada que lo consulte, CI incluido) se
+// quede esperando hasta 53s solo para pintar dos puntitos de estado.
+function commandExistsQuick(cmd, env) {
+  return execFileOnce(cmd, env, 6000);
 }
 
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
@@ -73,7 +82,7 @@ function logLine(event, line) {
 
 router.get('/check', async (req, res) => {
   const env = tizenEnv();
-  const [tizenOk, sdbOk] = await Promise.all([commandExists('tizen', env), commandExists('sdb', env)]);
+  const [tizenOk, sdbOk] = await Promise.all([commandExistsQuick('tizen', env), commandExistsQuick('sdb', env)]);
   res.json({
     ready: tizenOk && sdbOk,
     tizenOk,
