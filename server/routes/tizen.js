@@ -24,10 +24,24 @@ function tizenEnv() {
   return { ...process.env, PATH: `${toolsBin}${path.delimiter}${tools}${path.delimiter}${process.env.PATH}` };
 }
 
-function commandExists(cmd, env) {
+function execFileOnce(cmd, env, timeoutMs) {
   return new Promise((resolve) => {
-    execFileSafe(cmd, ['version'], { env, timeout: 10000 }, (err) => resolve(!err));
+    execFileSafe(cmd, ['version'], { env, timeout: timeoutMs }, (err) => resolve(!err));
   });
+}
+
+// "tizen"/"sdb" son herramientas basadas en Java — tardan varios segundos
+// en arrancar la primera vez, mucho más si el PC recién prendió y Windows
+// todavía está ocupado levantando el resto de programas de inicio (justo
+// el momento en que alguien llega al local, abre el panel y mira esta
+// pestaña). Con solo 10s de margen y un único intento, eso se confundía
+// con "las herramientas no están instaladas" y dejaba el botón de
+// instalar deshabilitado sin ninguna explicación clara. Ahora se espera
+// más tiempo y se reintenta una vez antes de darse por vencido.
+async function commandExists(cmd, env) {
+  if (await execFileOnce(cmd, env, 25000)) return true;
+  await sleep(3000);
+  return execFileOnce(cmd, env, 25000);
 }
 
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
@@ -117,6 +131,18 @@ function runStep(cmd, args, env, { ignoreError = false, logEvent = 'tizen:log', 
 
 async function deploy(tvIp, serverIp, screenId, cancelToken) {
   const env = tizenEnv();
+
+  // Sin este chequeo, si "tizen"/"sdb" de verdad no están instalados, lo
+  // único que se veía más abajo era "No se encontró la TV conectada" — un
+  // error que suena a problema de red/TV cuando en realidad el problema es
+  // que las herramientas no están en este PC. Mejor decirlo directo.
+  const [tizenOk, sdbOk] = await Promise.all([commandExists('tizen', env), commandExists('sdb', env)]);
+  if (!tizenOk || !sdbOk) {
+    throw new Error(
+      'Las herramientas de Tizen no respondieron en este PC. Si recién lo prendiste, espera un minuto y reintenta — ' +
+        'si sigue igual, puede que haga falta instalar el SDK de nuevo desde el botón de arriba.'
+    );
+  }
 
   fs.rmSync(BUILD_DIR, { recursive: true, force: true });
   fs.mkdirSync(SRC_DIR, { recursive: true });

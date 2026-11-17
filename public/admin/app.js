@@ -939,6 +939,7 @@
   const tizenTvIpInput = document.getElementById('tizen-tv-ip');
   const tizenServerIpInput = document.getElementById('tizen-server-ip');
   const tizenDeployBtn = document.getElementById('tizen-deploy');
+  const tizenDeployHint = document.getElementById('tizen-deploy-hint');
   const tizenScanBtn = document.getElementById('tizen-scan');
   const tizenScanResults = document.getElementById('tizen-scan-results');
   const tizenLog = document.getElementById('tizen-log');
@@ -974,6 +975,7 @@
   async function checkTizenReadiness() {
     tizenReadinessBody.innerHTML = '<p>Comprobando...</p>';
     tizenInstallSdkBtn.hidden = true;
+    tizenDeployHint.hidden = true;
     try {
       const status = await api('GET', '/api/tizen/check');
       tizenReadinessBody.innerHTML =
@@ -987,8 +989,18 @@
         const playerUrlCode = document.getElementById('tv-player-url-1');
         if (playerUrlCode) playerUrlCode.textContent = `http://${status.serverIp}:4010/player/1`;
       }
-      tizenDeployBtn.disabled = !status.ready || status.busy;
+      // El botón NUNCA queda deshabilitado solo por este chequeo (salvo que
+      // haya otra operación en curso): si el chequeo se equivoca (ej. el PC
+      // recién prendió y "tizen version" tardó más de la cuenta en
+      // responder), que el usuario pueda igual apretar "Instalar en la TV"
+      // y reciba un error real en vez de un botón gris que parece roto.
+      tizenDeployBtn.disabled = status.busy;
       if (!status.ready) {
+        tizenDeployHint.hidden = false;
+        tizenDeployHint.textContent =
+          'El panel no detectó las herramientas de Tizen en este PC todavía. Si el PC recién se prendió, espera ' +
+          'un minuto y vuelve a esta pestaña — a veces tardan en responder. Igual puedes apretar "Instalar en la ' +
+          'TV": si de verdad faltan, va a aparecer un error claro acá abajo en vez de no hacer nada.';
         if (status.canAutoInstallSdk) {
           tizenInstallSdkBtn.hidden = false;
           tizenInstallSdkBtn.disabled = status.busy;
@@ -1001,7 +1013,6 @@
       }
     } catch (err) {
       tizenReadinessBody.innerHTML = `<p>No se pudo comprobar: ${escapeHtml(err.message)}</p>`;
-      tizenDeployBtn.disabled = true;
     }
   }
 
@@ -1041,6 +1052,7 @@
     } catch (err) {
       setSpinner(tizenSpinner, false);
       showToast(err.message, true);
+      appendTizenLog(`❌ ${err.message}`);
       tizenDeployBtn.disabled = false;
     }
   });
