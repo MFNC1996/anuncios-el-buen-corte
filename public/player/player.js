@@ -6,6 +6,18 @@
   const screenId = (location.pathname.match(/\/player\/(\d+)/) || [, '1'])[1];
   const PLACEHOLDER_PHOTO = '/shared/brand/placeholder.svg';
 
+  // El cartel de MACOEM (proveedor del software) se agrega siempre acá, en
+  // el código del reproductor — nunca como una fila en playlist_slides —
+  // para que no aparezca como un cartel más en "Orden en pantalla" que se
+  // pueda editar, mover de contenido o borrar desde el panel.
+  const MACOEM_AD_SLIDE = {
+    id: 'macoem-ad',
+    category_id: null,
+    template_key: 'macoem',
+    animation_key: 'fade',
+    duration_seconds: 6,
+  };
+
   const state = {
     playlistId: null,
     slides: [],
@@ -32,7 +44,7 @@
 
   function headerTitleFor(slide) {
     if (FIXED_TITLES[slide.template_key]) return FIXED_TITLES[slide.template_key];
-    if (slide.template_key === 'portada' || slide.template_key === 'destacado' || slide.template_key === 'imagen') return null;
+    if (slide.template_key === 'portada' || slide.template_key === 'destacado' || slide.template_key === 'imagen' || slide.template_key === 'macoem') return null;
     const category = state.categoriesById[slide.category_id];
     return category ? category.name : null;
   }
@@ -168,6 +180,21 @@
       </div>`;
   }
 
+  // Cartel publicitario de MACOEM (el proveedor del software).
+  function renderMacoemAd() {
+    return `
+      <div class="board board--macoem">
+        <div class="macoem-content">
+          <div class="macoem-hex-wrap">
+            <img class="macoem-logo-img" src="/shared/brand/macoem-logo.png" alt="MACOEM" />
+          </div>
+          <h1 class="macoem-wordmark">MACOEM</h1>
+          <p class="macoem-tagline">Soluciones digitales para tu negocio</p>
+          <p class="macoem-contact">+56 9 4863 4973 &nbsp;·&nbsp; @macoem.cl</p>
+        </div>
+      </div>`;
+  }
+
   function renderPortada() {
     return `
       <div class="board board--portada">
@@ -184,6 +211,7 @@
     if (slide.template_key === 'horario') return renderHorario();
     if (slide.template_key === 'qr') return renderQr();
     if (slide.template_key === 'imagen') return renderImagenLibre(slide);
+    if (slide.template_key === 'macoem') return renderMacoemAd();
     if (slide.template_key === 'portada' || !slide.category_id) return renderPortada();
     const category = state.categoriesById[slide.category_id];
     if (!category) return renderPortada();
@@ -317,8 +345,7 @@
     }
     state.playlistId = screen.active_playlist_id;
     const playlist = await fetch(`/api/playlists/${state.playlistId}`).then((r) => r.json());
-    state.slides = playlist.slides || [];
-    if (!state.slides.length) return;
+    state.slides = [...(playlist.slides || []), MACOEM_AD_SLIDE];
     showSlide(keepIndex ? state.index : 0);
   }
 

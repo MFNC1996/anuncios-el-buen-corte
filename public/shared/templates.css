@@ -416,3 +416,91 @@
   text-transform: uppercase;
   color: var(--ebc-ink-soft);
 }
+
+/* ---- Cartel publicitario de MACOEM (proveedor del software) ---- */
+.board--macoem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #ffffff 0%, #fdeef3 100%);
+}
+.macoem-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.macoem-hex-wrap {
+  width: 26vh;
+  height: 26vh;
+  margin-bottom: 2.5vh;
+  animation: ebc-macoem-pulse 2.4s ease-in-out infinite;
+}
+.macoem-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  /* Mismo giro "moneda sobre una mesa" que el logo de la carnicería (ver
+     ebc-logo-spin más arriba), para que la marca de MACOEM se sienta con
+     el mismo nivel de pulido que el resto de la cartelera. */
+  animation: ebc-logo-spin 3s linear infinite;
+}
+.macoem-wordmark {
+  margin: 0;
+  font-size: 5.6vh;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: linear-gradient(120deg, #ec1561, #e8112d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.macoem-tagline {
+  margin: 1.1vh 0 0;
+  font-size: 2.4vh;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ebc-ink-soft);
+  opacity: 0;
+  animation: ebc-macoem-tagline-in 0.9s ease-out 0.4s forwards;
+}
+.macoem-contact {
+  margin: 0.8vh 0 0;
+  font-size: 1.8vh;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #e8112d;
+  opacity: 0;
+  animation: ebc-macoem-tagline-in 0.9s ease-out 0.7s forwards;
+}
+@keyframes ebc-macoem-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(232, 17, 45, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 2.2vh rgba(232, 17, 45, 0.35));
+  }
+}
+@keyframes ebc-macoem-tagline-in {
+  from {
+    opacity: 0;
+    transform: translateY(1vh);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .macoem-hex-wrap,
+  .macoem-logo-img {
+    animation: none;
+  }
+  .macoem-tagline,
+  .macoem-contact {
+    animation: none;
+    opacity: 1;
+  }
+}

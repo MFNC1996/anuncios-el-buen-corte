@@ -218,8 +218,6 @@
       state.slides = playlist.slides || [];
     }
 
-    const liveLink = document.getElementById('live-player-link');
-    if (liveLink) liveLink.href = `/player/${state.selectedScreenId}`;
     const playlistHint = document.getElementById('playlist-editing-hint');
     if (playlistHint) playlistHint.textContent = screen.name ? `Editando: ${screen.name}` : '';
 
