@@ -175,16 +175,30 @@ async function installWgt(wgtPath, deviceId, tvIp, env, cancelToken) {
     if (!/there is no .*target/i.test(err.output || err.message || '')) throw err;
   }
 
-  logLine('tizen:log', '==> La TV se desconectó justo antes de instalar — reconectando y reintentando...');
+  // Un simple "sdb connect" de nuevo no sirve acá: en la práctica la TV
+  // seguía conectada todo el rato (confirmado — "already connected" antes
+  // Y después) y "tizen install" igual decía que no existía el target. Eso
+  // apunta a que el SERVIDOR de sdb (el proceso de fondo que sdb y tizen
+  // consultan) quedó en un estado raro, no a que la conexión se cayera.
+  // "kill-server" lo apaga para que el siguiente comando lo levante limpio
+  // — mismo remedio que "adb kill-server" para el mismo síntoma en Android.
+  logLine('tizen:log', '==> "tizen install" no reconoce la TV aunque sigue conectada — reiniciando el servidor de sdb...');
+  await runStep('sdb', ['kill-server'], env, { ignoreError: true, cancelToken });
+  await sleep(1500);
   await runStep('sdb', ['connect', tvIp], env, { ignoreError: true, cancelToken });
   await runStep('sdb', ['connect', `${tvIp}:26101`], env, { ignoreError: true, cancelToken });
-  await sleep(2000);
+  await sleep(1500);
+
+  const { output: devicesOutput } = await runStep('sdb', ['devices'], env, { ignoreError: true, cancelToken });
+  logLine('tizen:log', `==> Estado de sdb después de reiniciar el servidor:\n${devicesOutput.trim() || '(sin salida)'}`);
+
   try {
     await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
   } catch (err) {
     throw new Error(
-      'La TV se desconectó justo antes de instalar (puede pasar si la pantalla entró en reposo). ' +
-        'Revisa que la TV esté encendida y con la pantalla prendida, y vuelve a intentar.'
+      '"tizen install" sigue sin reconocer la TV aunque sdb la ve conectada (revisa el registro de arriba). ' +
+        'No es un problema de red — probablemente haga falta reiniciar la TV y el PC, o instalar esta versión ' +
+        'directamente desde Tizen Studio (IDE) en vez del botón del panel.'
     );
   }
 }
