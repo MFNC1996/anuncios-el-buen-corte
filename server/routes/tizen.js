@@ -484,7 +484,14 @@ async function ensureCertificateAndProfile(home, env, cancelToken) {
         '0000',
       ],
     ],
-    ['config del cli', ['cli-config', `profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}`]],
+    // El propio "tizen" lo advierte en su mensaje de ayuda: en Windows,
+    // "<key>=<value>" tiene que venir entre comillas dobles o lo rechaza con
+    // "configuration must be specified in the form:<key>=<value>" — a pesar
+    // de no tener espacios. Sin esto, este paso fallaba siempre (en CI y en
+    // el local), y como es el último del instalador, la instalación entera
+    // se reportaba como fallida aunque el SDK, el certificado y el perfil de
+    // firma ya hubieran quedado bien puestos.
+    ['config del cli', ['cli-config', `"profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}"`]],
   ];
   for (const [name, args] of steps) {
     try {
