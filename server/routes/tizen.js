@@ -464,10 +464,22 @@ async function installSdk(cancelToken) {
   logLine('tizensdk:log', '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.');
 }
 
-// El certificado, el perfil de seguridad y la config del CLI fallan con "ya
-// existe" si se corren una segunda vez sobre una instalación que ya los
-// tenía — eso no es un error real (es justo lo que se espera si el SDK ya
-// estaba configurado de antes), así que no debe tumbar la instalación entera.
+// El certificado y el perfil de seguridad fallan con "ya existe" si se
+// corren una segunda vez sobre una instalación que ya los tenía — eso no es
+// un error real (es justo lo que se espera si el SDK ya estaba configurado
+// de antes), así que no debe tumbar la instalación entera.
+//
+// Antes había un tercer paso acá, "tizen cli-config profiles.path=...", para
+// apuntar el perfil "global" de Tizen Studio a este mismo profiles.xml. Se
+// quitó: en Windows ese comando SIEMPRE fallaba (tizen.bat lo rechaza con
+// "configuration must be specified in the form:<key>=<value>" por más que se
+// probara encomillarlo de varias formas — un problema conocido de Tizen
+// Studio en Windows, no de cómo arma el comando esta app), y además era
+// puro adorno: "security-profiles add" ya deja el perfil "ebcorte" en la
+// ubicación por defecto que Tizen usa de todas formas, y nuestro propio
+// empaquetado (deploy() más abajo) siempre pasa "-s ebcorte" explícito al
+// firmar, así que nunca dependió de ese default global. Confirmado con un
+// empaquetado real de prueba en Windows sin este paso.
 async function ensureCertificateAndProfile(home, env, cancelToken) {
   const steps = [
     ['certificado', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL']],
@@ -484,14 +496,6 @@ async function ensureCertificateAndProfile(home, env, cancelToken) {
         '0000',
       ],
     ],
-    // El propio "tizen" lo advierte en su mensaje de ayuda: en Windows,
-    // "<key>=<value>" tiene que venir entre comillas dobles o lo rechaza con
-    // "configuration must be specified in the form:<key>=<value>" — a pesar
-    // de no tener espacios. Sin esto, este paso fallaba siempre (en CI y en
-    // el local), y como es el último del instalador, la instalación entera
-    // se reportaba como fallida aunque el SDK, el certificado y el perfil de
-    // firma ya hubieran quedado bien puestos.
-    ['config del cli', ['cli-config', `"profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}"`]],
   ];
   for (const [name, args] of steps) {
     try {

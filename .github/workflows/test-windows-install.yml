@@ -228,22 +228,50 @@ jobs:
           }
           Write-Host "OK: certificado de firma creado"
 
-          # "ready" y el .p12 ya estaban bien antes de que se descubriera este
-          # bug (el ultimo paso, cli-config, fallaba siempre en Windows y
-          # dejaba la instalacion entera marcada como fallida) — ninguno de
-          # los dos chequeos de arriba lo habria detectado. La unica senal de
-          # que install-sdk termino de verdad sin tirar error en NINGUN paso
-          # es esta linea final, que solo se imprime si el for loop de
-          # ensureCertificateAndProfile (certificado + perfil + cli-config)
-          # no lanzo ninguna excepcion no manejada.
+          # "ready" y el .p12 por si solos no bastan para confirmar que
+          # install-sdk termino bien del todo (asi se nos escapo antes un
+          # paso que fallaba siempre en Windows) — esta linea final solo se
+          # imprime si ensureCertificateAndProfile (certificado + perfil) no
+          # lanzo ninguna excepcion no manejada.
           $log = Get-Content "$env:LOCALAPPDATA\CarteleraElBuenCorte\server\data\tizen.log" -ErrorAction SilentlyContinue
           $listoCount = ($log | Select-String 'Listo\. Ya puedes usar').Count
           if ($listoCount -lt 1) {
             Write-Host "---- server\data\tizen.log ----"
             $log | Write-Host
-            throw "install-sdk no llego al mensaje final de exito — algun paso (certificado/perfil/cli-config) fallo sin que los chequeos de arriba lo detectaran"
+            throw "install-sdk no llego al mensaje final de exito — algun paso (certificado/perfil) fallo sin que los chequeos de arriba lo detectaran"
           }
           Write-Host "OK: install-sdk termino de verdad sin error en ningun paso"
+
+      - name: Empaquetar y firmar la app real de la TV con el perfil "ebcorte" (lo que deploy() hace de verdad)
+        shell: pwsh
+        run: |
+          # El chequeo que de verdad importa: que el certificado/perfil que
+          # se acaban de crear sirvan para firmar el .wgt real, exactamente
+          # como lo hace deploy() en tizen.js (mismo comando, mismos
+          # archivos) — sin necesitar el paso de "cli-config" que se saco
+          # del instalador por ser puro adorno (ver el comentario en
+          # ensureCertificateAndProfile en tizen.js). Si esto funciona sin
+          # haber corrido cli-config nunca, confirma que de verdad no hacia
+          # falta.
+          $installDir = "$env:LOCALAPPDATA\CarteleraElBuenCorte"
+          $srcDir = "$env:TEMP\tizen-package-test\src"
+          $buildDir = "$env:TEMP\tizen-package-test\build"
+          Remove-Item -Recurse -Force "$env:TEMP\tizen-package-test" -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $srcDir | Out-Null
+          Copy-Item "$installDir\tizen-app\config.xml" "$srcDir\config.xml"
+          Copy-Item "$installDir\tizen-app\icon.png" "$srcDir\icon.png"
+          Copy-Item "$installDir\tizen-app\index.html" "$srcDir\index.html"
+
+          $tizenBat = "$env:USERPROFILE\tizen-studio\tools\ide\bin\tizen.bat"
+          & $tizenBat package -t wgt -s ebcorte -o $buildDir -- $srcDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "El empaquetado/firma con el perfil 'ebcorte' fallo (codigo $LASTEXITCODE) — sin cli-config, el deploy real tampoco podria firmar la app"
+          }
+          $wgt = Get-ChildItem $buildDir -Filter *.wgt -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $wgt) {
+            throw "El empaquetado no genero ningun archivo .wgt"
+          }
+          Write-Host "OK: .wgt empaquetado y firmado con el perfil 'ebcorte' sin necesitar cli-config -> $($wgt.FullName)"
 
       - name: Apretar "Instalar herramientas de Tizen" una segunda vez (reproduce el caso real reportado desde el local)
         shell: pwsh
