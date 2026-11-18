@@ -228,6 +228,47 @@ jobs:
           }
           Write-Host "OK: certificado de firma creado"
 
+      - name: Apretar "Instalar herramientas de Tizen" una segunda vez (reproduce el caso real reportado desde el local)
+        shell: pwsh
+        run: |
+          # Caso real: alguien aprieta el boton "por si acaso" con el SDK ya
+          # instalado de antes. Antes del fix esto fallaba porque el
+          # instalador de Samsung rechaza una carpeta que ya existe y el
+          # certificado ya estaba creado ("Already exist the specified
+          # filename") — y el servidor reportaba eso como un error fatal
+          # aunque no habia nada roto. Esta vez debe terminar rapido (sin
+          # volver a correr el instalador real de ~300MB) y sin error.
+          Invoke-RestMethod -Method Post -Uri http://localhost:4010/api/tizen/install-sdk -TimeoutSec 5 | Out-Null
+
+          $finished = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 15
+              if (-not $status.busy) { $finished = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 5
+          }
+          $log = Get-Content "$env:LOCALAPPDATA\CarteleraElBuenCorte\server\data\tizen.log" -ErrorAction SilentlyContinue
+          if (-not $finished) {
+            Write-Host "---- server\data\tizen.log ----"
+            $log | Write-Host
+            throw "La segunda vuelta de install-sdk no termino en ~5 minutos (deberia ser casi instantanea)"
+          }
+
+          $status = Invoke-RestMethod -Uri http://localhost:4010/api/tizen/check -TimeoutSec 15
+          Write-Host "---- server\data\tizen.log (segunda vuelta) ----"
+          $log | Write-Host
+          if (-not $status.ready) {
+            throw "Tras la segunda vuelta, tizen/sdb dejaron de estar listos"
+          }
+          if (-not ($log -match 'ya estaba instalado y funcionando')) {
+            throw "No se detecto el mensaje de 'SDK ya instalado' — se habra vuelto a correr el instalador de nuevo?"
+          }
+          if (-not ($log -match 'ya estaba configurado de antes')) {
+            throw "No se detecto el mensaje de certificado ya existente — la segunda vuelta no fue idempotente"
+          }
+          Write-Host "OK: segunda vuelta de install-sdk fue idempotente, sin error"
+
       - name: Preparar una version "vieja" para probar el actualizador
         shell: pwsh
         run: |

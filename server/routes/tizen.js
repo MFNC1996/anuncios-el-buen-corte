@@ -401,54 +401,102 @@ async function installSdk(cancelToken) {
 
   const home = defaultTizenHome();
   const env = tizenEnv();
-  logLine('tizensdk:log', '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...');
+  const tizenBin = tizenBinPath(home);
 
-  // El instalador de Tizen Studio sigue corriendo (bajando paquetes extra,
-  // limpieza interna) mucho después de que "tizen"/"sdb" ya quedaron
-  // instalados y utilizables en disco — en un runner de CI real esto tardó
-  // 40+ minutos de puro silencio después de que las herramientas ya
-  // funcionaban. En vez de esperar a que el proceso cierre solo, se corre
-  // sin esperarlo y en paralelo se revisa cada pocos segundos si "tizen" y
-  // "sdb" ya responden: lo que pase primero (vía waitForToolsOrExit).
-  const installerChild = spawnSafe(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], {});
-  if (cancelToken) cancelToken.activeChild = installerChild;
-  const forwardInstallerLine = (data) =>
-    data
-      .toString()
-      .split('\n')
-      .filter((l) => l.trim())
-      .forEach((l) => logLine('tizensdk:log', l));
-  installerChild.stdout?.on('data', forwardInstallerLine);
-  installerChild.stderr?.on('data', forwardInstallerLine);
+  // Si alguien aprieta este botón "para estar seguro" aunque el SDK ya haya
+  // quedado bien instalado antes (algo totalmente esperable — el panel no
+  // explica cuándo es seguro no tocarlo), correr el instalador de nuevo no
+  // sirve: el instalador de Samsung rechaza instalar sobre una carpeta que
+  // ya existe ("Invalid the destination directory") y además el certificado
+  // de firma ya estaría creado. Antes esto se disfrazaba de instalación
+  // exitosa (porque tizen/sdb ya respondían de antes) y después tronaba en
+  // el paso del certificado con "Already exist the specified filename",
+  // reportando como error algo que en realidad no estaba roto.
+  const [tizenAlreadyOk, sdbAlreadyOk] = await Promise.all([commandExists('tizen', env), commandExists('sdb', env)]);
+  if (fs.existsSync(tizenBin) && tizenAlreadyOk && sdbAlreadyOk) {
+    logLine('tizensdk:log', '==> El SDK de Tizen ya estaba instalado y funcionando — reviso el certificado de firma.');
+  } else {
+    // Una carpeta a medio instalar de un intento anterior (instalador
+    // cortado, PC apagado a mitad de proceso) hace que el instalador la
+    // rechace igual que si fuera una instalación completa, sin explicar por
+    // qué — hay que limpiarla antes para que pueda crear una instalación
+    // nueva y completa ahí.
+    if (fs.existsSync(home)) {
+      logLine('tizensdk:log', '==> Encontré una instalación anterior incompleta — la limpio antes de instalar de nuevo...');
+      fs.rmSync(home, { recursive: true, force: true });
+    }
 
-  await waitForToolsOrExit(installerChild, env, cancelToken);
+    logLine('tizensdk:log', '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...');
 
-  const tizenBin = path.join(home, 'tools', 'ide', 'bin', 'tizen.bat');
-  if (!fs.existsSync(tizenBin)) {
-    throw new Error('El instalador terminó pero no se encontró tizen.bat — revisa el registro de arriba.');
+    // El instalador de Tizen Studio sigue corriendo (bajando paquetes extra,
+    // limpieza interna) mucho después de que "tizen"/"sdb" ya quedaron
+    // instalados y utilizables en disco — en un runner de CI real esto tardó
+    // 40+ minutos de puro silencio después de que las herramientas ya
+    // funcionaban. En vez de esperar a que el proceso cierre solo, se corre
+    // sin esperarlo y en paralelo se revisa cada pocos segundos si "tizen" y
+    // "sdb" ya responden: lo que pase primero (vía waitForToolsOrExit).
+    const installerChild = spawnSafe(INSTALLER_EXE, ['--accept-license', '--no-java-check', home], {});
+    if (cancelToken) cancelToken.activeChild = installerChild;
+    const forwardInstallerLine = (data) =>
+      data
+        .toString()
+        .split('\n')
+        .filter((l) => l.trim())
+        .forEach((l) => logLine('tizensdk:log', l));
+    installerChild.stdout?.on('data', forwardInstallerLine);
+    installerChild.stderr?.on('data', forwardInstallerLine);
+
+    await waitForToolsOrExit(installerChild, env, cancelToken);
+
+    if (!fs.existsSync(tizenBin)) {
+      throw new Error('El instalador terminó pero no se encontró tizen.bat — revisa el registro de arriba.');
+    }
+    // El disco acaba de cambiar de verdad (se instaló/reparó el SDK) — que el
+    // próximo chequeo vuelva a buscar en vez de confiar en un resultado
+    // cacheado de antes de esta instalación.
+    cachedTizenHome = null;
+
+    logLine('tizensdk:log', '==> tizen/sdb ya responden — creando el certificado de firma de la app...');
   }
-  // El disco acaba de cambiar de verdad (se instaló/reparó el SDK) — que el
-  // próximo chequeo vuelva a buscar en vez de confiar en un resultado
-  // cacheado de antes de esta instalación.
-  cachedTizenHome = null;
 
-  logLine('tizensdk:log', '==> tizen/sdb ya responden — creando el certificado de firma de la app...');
-  await runStep('tizen', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL'], env, {
-    logEvent: 'tizensdk:log',
-    cancelToken,
-  });
-  await runStep(
-    'tizen',
-    ['security-profiles', 'add', '-n', 'ebcorte', '-a', path.join(`${home}-data`, 'keystore', 'author', 'ebcorte.p12'), '-p', '0000'],
-    env,
-    { logEvent: 'tizensdk:log', cancelToken }
-  );
-  await runStep('tizen', ['cli-config', `profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}`], env, {
-    logEvent: 'tizensdk:log',
-    cancelToken,
-  });
+  await ensureCertificateAndProfile(home, env, cancelToken);
 
   logLine('tizensdk:log', '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.');
+}
+
+// El certificado, el perfil de seguridad y la config del CLI fallan con "ya
+// existe" si se corren una segunda vez sobre una instalación que ya los
+// tenía — eso no es un error real (es justo lo que se espera si el SDK ya
+// estaba configurado de antes), así que no debe tumbar la instalación entera.
+async function ensureCertificateAndProfile(home, env, cancelToken) {
+  const steps = [
+    ['certificado', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL']],
+    [
+      'perfil de seguridad',
+      [
+        'security-profiles',
+        'add',
+        '-n',
+        'ebcorte',
+        '-a',
+        path.join(`${home}-data`, 'keystore', 'author', 'ebcorte.p12'),
+        '-p',
+        '0000',
+      ],
+    ],
+    ['config del cli', ['cli-config', `profiles.path=${path.join(`${home}-data`, 'profile', 'profiles.xml')}`]],
+  ];
+  for (const [name, args] of steps) {
+    try {
+      await runStep('tizen', args, env, { logEvent: 'tizensdk:log', cancelToken });
+    } catch (err) {
+      if (/already exist/i.test(err.output || '')) {
+        logLine('tizensdk:log', `==> (${name}: ya estaba configurado de antes, se deja igual)`);
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 router.post('/install-sdk', (req, res) => {
