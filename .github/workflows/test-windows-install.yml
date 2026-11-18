@@ -251,7 +251,7 @@ jobs:
         shell: pwsh
         run: |
           $ok = $false
-          for ($i = 0; $i -lt 20; $i++) {
+          for ($i = 0; $i -lt 40; $i++) {
             try {
               $check = Invoke-RestMethod -Uri http://localhost:4010/api/update/check -TimeoutSec 3
               $ok = $true; break

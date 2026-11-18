@@ -27,11 +27,17 @@ objShell.Run cmd, 0, False
 ' instalados, varios programas de inicio compitiendo a la vez), que es
 ' exactamente cuando alguien llega al local y mira el panel por primera vez
 ' ese dia. Reintenta hasta 30 segundos antes de abrir la ventana igual.
-Dim http, attempt, ready
-Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+' Un objeto WinHttpRequest nuevo en CADA intento, no uno solo reusado para
+' los 60 — reusar el mismo objeto después de que el primer intento falla
+' (el servidor recién está arrancando, lo más común) lo deja en un estado
+' que nunca vuelve a detectar una respuesta válida después, así que el
+' bucle siempre terminaba agotando los 30 segundos completos aunque el
+' servidor ya llevara rato respondiendo bien.
+Dim attempt, ready, http
 ready = False
 For attempt = 1 To 60
   On Error Resume Next
+  Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
   http.Open "GET", adminUrl, False
   http.Send
   If Err.Number = 0 And http.Status > 0 Then ready = True
