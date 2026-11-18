@@ -586,13 +586,25 @@
 
     const mosaicUpload =
       profile.mode === 'mosaic'
-        ? `<div class="category-card">
+        ? (() => {
+            // Mismo cálculo que hace el servidor para exigir la medida
+            // exacta (ver mosaicGridFor en server/routes/uploads.js) —
+            // mostrarlo acá antes de subir evita que se enteren recién con
+            // el rechazo.
+            const rows = Math.max(1, ...screens.map((s) => (s.position_row ?? 0) + 1));
+            const cols = Math.max(1, ...screens.map((s) => (s.position_col ?? 0) + 1));
+            const requiredW = cols * 1920;
+            const requiredH = rows * 1080;
+            return `<div class="category-card">
             <div class="category-card__header"><strong>Imagen del mosaico</strong></div>
+            <p class="hint" style="margin: 0.6rem 1rem 0">Tiene que medir exactamente <strong>${requiredW}x${requiredH}px</strong>
+              (${cols} pantalla${cols === 1 ? '' : 's'} de ancho × ${rows} de alto, a 1920x1080 cada una).</p>
             <div class="background-preview" style="${
               profile.mosaic_image_path ? `background-image:url('${profile.mosaic_image_path}')` : ''
             }">${profile.mosaic_image_path ? '' : 'Sin imagen'}</div>
             <input type="file" accept="image/png,image/jpeg,image/webp" data-action="upload-mosaic" data-profile-id="${profile.id}" />
-          </div>`
+          </div>`;
+          })()
         : '';
 
     return `

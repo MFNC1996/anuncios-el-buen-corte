@@ -3,8 +3,26 @@ const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
+const { imageSize } = require('image-size');
 const db = require('../db');
 const { broadcast } = require('../ws');
+
+// Mismo criterio que usa el reproductor para recortar el mosaico entre las
+// pantallas de un perfil (ver renderMosaic en public/player/player.js): el
+// total de filas/columnas sale de la posición más alta ocupada por alguna
+// pantalla de ese perfil. Una TV de referencia mide 1920x1080 — la imagen
+// completa tiene que medir exactamente columnas×1920 por filas×1080, si no,
+// el recorte de cada pantalla queda estirado o con bordes en vez de calzar
+// pixel a pixel.
+const MOSAIC_TILE_WIDTH = 1920;
+const MOSAIC_TILE_HEIGHT = 1080;
+
+function mosaicGridFor(profileId) {
+  const screens = db.prepare('SELECT position_row, position_col FROM screens WHERE profile_id = ?').all(profileId);
+  const rows = Math.max(1, ...screens.map((s) => (s.position_row ?? 0) + 1));
+  const cols = Math.max(1, ...screens.map((s) => (s.position_col ?? 0) + 1));
+  return { rows, cols };
+}
 
 const router = express.Router();
 
@@ -88,8 +106,31 @@ router.post('/slide/:id', upload.single('photo'), (req, res) => {
 
 router.post('/profile/:id', upload.single('photo'), (req, res) => {
   const existing = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Perfil no encontrado' });
+  if (!existing) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(404).json({ error: 'Perfil no encontrado' });
+  }
   if (!req.file) return res.status(400).json({ error: 'Falta el archivo photo' });
+
+  const { rows, cols } = mosaicGridFor(req.params.id);
+  const expectedWidth = cols * MOSAIC_TILE_WIDTH;
+  const expectedHeight = rows * MOSAIC_TILE_HEIGHT;
+  let actual;
+  try {
+    actual = imageSize(fs.readFileSync(req.file.path));
+  } catch (err) {
+    fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ error: 'No se pudo leer la imagen — ¿está dañada?' });
+  }
+  if (actual.width !== expectedWidth || actual.height !== expectedHeight) {
+    fs.unlink(req.file.path, () => {});
+    return res.status(400).json({
+      error:
+        `La imagen debe medir exactamente ${expectedWidth}x${expectedHeight}px ` +
+        `(${cols} pantalla${cols === 1 ? '' : 's'} de ancho × ${rows} de alto, a 1920x1080 cada una) — ` +
+        `subiste una de ${actual.width}x${actual.height}px.`,
+    });
+  }
 
   const imagePath = `/uploads/${req.file.filename}`;
   db.prepare('UPDATE profiles SET mosaic_image_path = ? WHERE id = ?').run(imagePath, req.params.id);
