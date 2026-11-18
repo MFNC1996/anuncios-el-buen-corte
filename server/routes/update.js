@@ -55,7 +55,25 @@ async function fetchLatestRelease() {
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
     headers: { 'User-Agent': 'CarteleraElBuenCorte-Updater', Accept: 'application/vnd.github+json' },
   });
-  if (!res.ok) throw new Error(`GitHub respondió ${res.status} al buscar la última versión`);
+  if (!res.ok) {
+    // GitHub deja consultar sin iniciar sesión, pero con un límite por hora
+    // (60 consultas) — si se revisa "Buscar actualización" muchas veces
+    // seguidas en poco tiempo, responde 403 con el límite en 0 hasta que
+    // pase la hora. Sin este aviso, el error crudo ("GitHub respondió 403")
+    // suena a que algo se rompió, cuando en realidad solo hay que esperar.
+    if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0') {
+      const resetAt = Number(res.headers.get('x-ratelimit-reset'));
+      const resetTime = resetAt
+        ? new Date(resetAt * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }).replace(/\.$/, '')
+        : null;
+      const resetText = resetTime ? `aprox. a las ${resetTime}` : 'en un rato';
+      throw new Error(
+        `GitHub limitó temporalmente las consultas de actualización desde este PC — se restablece solo, ` +
+          `${resetText}. No afecta a la cartelera, solo a buscar actualizaciones nuevas por ahora.`
+      );
+    }
+    throw new Error(`GitHub respondió ${res.status} al buscar la última versión`);
+  }
   const data = await res.json();
   const latestVersion = String(data.tag_name || '').replace(/^v/, '');
   const asset = (data.assets || []).find((a) => a.name === 'update.zip');
