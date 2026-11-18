@@ -14,13 +14,48 @@ const BUILD_DIR = path.join(TIZEN_APP_DIR, '.build');
 const SRC_DIR = path.join(BUILD_DIR, 'src');
 const INSTALLER_EXE = path.join(INSTALL_ROOT, 'tizen-studio-installer.exe');
 
-function tizenHome() {
+// Acá es donde nuestro propio instalador (el botón "Instalar herramientas
+// de Tizen") siempre instala/repara el SDK — no cambia nunca, para que ese
+// botón sepa siempre dónde actuar.
+function defaultTizenHome() {
   return path.join(os.homedir(), 'tizen-studio');
 }
 
+function tizenBinPath(home) {
+  return path.join(home, 'tools', 'ide', 'bin', process.platform === 'win32' ? 'tizen.bat' : 'tizen');
+}
+
+// Ubicaciones donde alguien pudo haber instalado el SDK a mano (con el
+// instalador oficial de Samsung, no con nuestro botón) antes de usar este
+// programa — ahí el "tizen" nunca se iba a encontrar porque solo
+// mirábamos la carpeta por defecto.
+function candidateTizenHomes() {
+  const candidates = [defaultTizenHome(), 'C:\\tizen-studio'];
+  if (process.env.ProgramFiles) candidates.push(path.join(process.env.ProgramFiles, 'Tizen Studio'));
+  if (process.env['ProgramFiles(x86)']) candidates.push(path.join(process.env['ProgramFiles(x86)'], 'Tizen Studio'));
+  if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, 'tizen-studio'));
+  return candidates;
+}
+
+let cachedTizenHome = null;
+
+// Dónde usar de verdad tizen/sdb para CORRER comandos (chequeos, deploy,
+// empaquetado) — a diferencia de defaultTizenHome(), esta sí busca en otras
+// ubicaciones si no está en la de siempre, y recuerda el resultado para no
+// repetir la búsqueda en cada chequeo. installSdk() sigue usando siempre
+// defaultTizenHome() como destino, nunca esto — instalar/reparar el SDK
+// adentro de una carpeta que resultó estar en otro lado sería sorpresivo.
+function resolveTizenHome({ forceRescan = false } = {}) {
+  if (cachedTizenHome && !forceRescan) return cachedTizenHome;
+  const found = candidateTizenHomes().find((home) => fs.existsSync(tizenBinPath(home)));
+  cachedTizenHome = found || defaultTizenHome();
+  return cachedTizenHome;
+}
+
 function tizenEnv() {
-  const toolsBin = path.join(tizenHome(), 'tools', 'ide', 'bin');
-  const tools = path.join(tizenHome(), 'tools');
+  const home = resolveTizenHome();
+  const toolsBin = path.join(home, 'tools', 'ide', 'bin');
+  const tools = path.join(home, 'tools');
   return { ...process.env, PATH: `${toolsBin}${path.delimiter}${tools}${path.delimiter}${process.env.PATH}` };
 }
 
@@ -87,11 +122,23 @@ router.get('/check', async (req, res) => {
     ready: tizenOk && sdbOk,
     tizenOk,
     sdbOk,
+    foundAt: resolveTizenHome(),
     canAutoInstallSdk: process.platform === 'win32' && fs.existsSync(INSTALLER_EXE),
     serverIp: detectServerIp(),
     busy: jobLock.isBusy(),
     busyWith: jobLock.currentLabel(),
   });
+});
+
+// Botón "Buscar instalación existente": por si alguien ya tenía el SDK de
+// Tizen instalado a mano (con el instalador oficial de Samsung, en vez de
+// con el botón de este panel) antes de usar este programa, en una carpeta
+// que no es la de siempre — sin esto, nunca se iba a encontrar.
+router.post('/find', async (req, res) => {
+  const home = resolveTizenHome({ forceRescan: true });
+  const env = tizenEnv();
+  const [tizenOk, sdbOk] = await Promise.all([commandExistsQuick('tizen', env), commandExistsQuick('sdb', env)]);
+  res.json({ ready: tizenOk && sdbOk, tizenOk, sdbOk, foundAt: home });
 });
 
 // Corre un comando externo y manda cada línea de su salida por WebSocket a
@@ -352,7 +399,7 @@ async function installSdk(cancelToken) {
     throw new Error('No se encontró el instalador del SDK junto al programa. Reinstala con la versión más reciente.');
   }
 
-  const home = tizenHome();
+  const home = defaultTizenHome();
   const env = tizenEnv();
   logLine('tizensdk:log', '==> Instalando el SDK de Tizen (necesita internet, puede tardar varios minutos)...');
 
@@ -380,6 +427,10 @@ async function installSdk(cancelToken) {
   if (!fs.existsSync(tizenBin)) {
     throw new Error('El instalador terminó pero no se encontró tizen.bat — revisa el registro de arriba.');
   }
+  // El disco acaba de cambiar de verdad (se instaló/reparó el SDK) — que el
+  // próximo chequeo vuelva a buscar en vez de confiar en un resultado
+  // cacheado de antes de esta instalación.
+  cachedTizenHome = null;
 
   logLine('tizensdk:log', '==> tizen/sdb ya responden — creando el certificado de firma de la app...');
   await runStep('tizen', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL'], env, {

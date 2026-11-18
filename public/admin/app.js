@@ -946,6 +946,7 @@
 
   // ---------------- Instalar en TV Samsung (Tizen) ----------------
   const tizenReadinessBody = document.getElementById('tizen-readiness-body');
+  const tizenFindBtn = document.getElementById('tizen-find');
   const tizenInstallSdkBtn = document.getElementById('tizen-install-sdk');
   const tizenScreenSelect = document.getElementById('tizen-screen-select');
   const tizenTvIpInput = document.getElementById('tizen-tv-ip');
@@ -993,6 +994,7 @@
       tizenReadinessBody.innerHTML =
         readinessRow(status.tizenOk, 'Herramienta <code>tizen</code> encontrada') +
         readinessRow(status.sdbOk, 'Herramienta <code>sdb</code> encontrada') +
+        (status.foundAt ? `<p class="hint" style="margin:0.3rem 0 0">Buscando en: <code>${escapeHtml(status.foundAt)}</code></p>` : '') +
         (status.busy ? readinessRow(false, busyMessage(status.busyWith)) : '');
       if (status.serverIp && !tizenServerIpInput.value) {
         tizenServerIpInput.value = status.serverIp;
@@ -1033,6 +1035,30 @@
     tizenLog.textContent += `${line}\n`;
     tizenLog.scrollTop = tizenLog.scrollHeight;
   }
+
+  // "Buscar instalación existente": por si el SDK de Tizen ya estaba
+  // instalado a mano (con el instalador oficial de Samsung) en vez de con
+  // el botón de abajo, en una carpeta que este panel no revisa por
+  // defecto — útil cuando el chequeo dice que falta algo que en realidad
+  // sí está, solo que en otro lado.
+  tizenFindBtn.addEventListener('click', async () => {
+    tizenFindBtn.disabled = true;
+    tizenReadinessBody.innerHTML = '<p>Buscando en otras ubicaciones del PC...</p>';
+    try {
+      const status = await api('POST', '/api/tizen/find');
+      if (status.ready) {
+        showToast(`Encontrado en ${status.foundAt}`);
+      } else {
+        showToast('No se encontró tizen/sdb en ninguna ubicación conocida de este PC.', true);
+      }
+      await checkTizenReadiness();
+    } catch (err) {
+      showToast(err.message, true);
+      await checkTizenReadiness();
+    } finally {
+      tizenFindBtn.disabled = false;
+    }
+  });
 
   tizenInstallSdkBtn.addEventListener('click', async () => {
     tizenLog.textContent = '';
