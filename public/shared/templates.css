@@ -75,9 +75,10 @@
      de la categoría que se escriba. */
   flex: 1;
   text-align: center;
-  font-size: 5.5vh;
+  font-size: 6.5vh;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   margin: 0;
 }
 
@@ -95,6 +96,13 @@
 /* ---------- Grid: tarjetas como las del POS (.tarjeta) ---------- */
 .board--grid .items-grid {
   flex: 1;
+  /* Mismo motivo que el "min-height: 0" de .item-card más abajo, pero un
+     nivel más arriba: un flex item con "flex: 1" también tiene por defecto
+     un tamaño mínimo "auto" basado en su contenido — sin esto, el grid
+     entero podía insistir en medir más alto que el espacio real que le
+     daba .board (flex column) y empujar las filas de abajo fuera de la
+     pantalla, en vez de comprimirse a lo que fitGridRows() calculó. */
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   /* La altura de cada fila ("grid-template-rows") la fija player.js en
@@ -105,8 +113,8 @@
      la pantalla. Midiendo con JS no hay margen de error posible.
      grid-auto-rows por si fitGridRows no llega a correr por algún motivo. */
   grid-auto-rows: 1fr;
-  gap: 1.2vh 1.5vw;
-  padding: 1.5vh 3vw;
+  gap: 0.8vh 1vw;
+  padding: 0.8vh 1.5vw;
 }
 .item-card {
   background: var(--ebc-surface);
@@ -117,6 +125,14 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Sin esto, el tamaño mínimo "auto" que un grid item tiene por defecto
+     (basado en el contenido: la foto + el texto) podía ser mayor a la
+     altura de fila que calcula fitGridRows en player.js — con pocas filas
+     (6 productos, 2 filas) sobraba espacio y no se notaba, pero con 3+
+     filas cada una quedaba más angosta y el contenido "insistía" en su
+     tamaño mínimo, empujando las filas de abajo fuera de la pantalla en
+     vez de comprimirse al tamaño que se les asignó. */
+  min-height: 0;
 }
 .item-card .item-photo {
   width: 100%;
@@ -130,16 +146,16 @@
   background: var(--ebc-paper);
 }
 .item-card .item-body {
-  padding: 1vh 1.6vw;
+  padding: 1.4vh 1.8vw;
   display: flex;
   flex-direction: column;
-  gap: 0.4vh;
+  gap: 0.6vh;
   flex: 0 0 auto;
 }
 .item-card .item-name {
   font-weight: 600;
-  font-size: 2.2vh;
-  line-height: 1.2;
+  font-size: 3.8vh;
+  line-height: 1.15;
   color: var(--ebc-ink);
 }
 .item-card .item-price-row {
@@ -149,12 +165,12 @@
 }
 .item-card .item-price {
   font-variant-numeric: tabular-nums;
-  font-size: 2.7vh;
+  font-size: 4.6vh;
   font-weight: 800;
   color: var(--ebc-red-vivid);
 }
 .item-card .item-unit {
-  font-size: 1.7vh;
+  font-size: 2.5vh;
   color: var(--ebc-ink-soft);
   font-weight: 500;
 }
@@ -162,7 +178,7 @@
 /* ---------- Lista: como una tabla del panel, filas limpias ---------- */
 .board--lista .items-list {
   flex: 1;
-  padding: 1.5vh 5vw;
+  padding: 1vh 3vw;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -171,14 +187,14 @@
   display: flex;
   align-items: baseline;
   gap: 1vw;
-  padding: 1.3vh 1vw;
+  padding: 1.6vh 1vw;
   border-bottom: 0.1vh solid var(--ebc-border);
 }
 .list-row:nth-child(odd) {
   background: #fafafc;
 }
 .list-row .list-name {
-  font-size: 2.8vh;
+  font-size: 3.6vh;
   font-weight: 600;
   color: var(--ebc-ink);
   white-space: nowrap;
@@ -190,13 +206,13 @@
 }
 .list-row .list-price {
   font-variant-numeric: tabular-nums;
-  font-size: 3.1vh;
+  font-size: 4vh;
   font-weight: 800;
   color: var(--ebc-red-vivid);
   white-space: nowrap;
 }
 .list-row .list-unit {
-  font-size: 1.8vh;
+  font-size: 2.3vh;
   color: var(--ebc-ink-soft);
 }
 
@@ -348,7 +364,7 @@
 /* ---------- Horario de atención ---------- */
 .board--horario .hours-list {
   flex: 1;
-  padding: 2vh 6vw;
+  padding: 1.5vh 3.5vw;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -357,25 +373,25 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 1.4vh 1vw;
+  padding: 1.8vh 1vw;
   border-bottom: 0.1vh solid var(--ebc-border);
 }
 .hours-row:nth-child(odd) {
   background: #fafafc;
 }
 .hours-day {
-  font-size: 2.8vh;
+  font-size: 3.6vh;
   font-weight: 600;
   color: var(--ebc-ink);
 }
 .hours-time {
   font-variant-numeric: tabular-nums;
-  font-size: 2.8vh;
+  font-size: 3.6vh;
   font-weight: 700;
   color: var(--ebc-green);
 }
 .hours-closed {
-  font-size: 2.4vh;
+  font-size: 3vh;
   font-weight: 700;
   color: var(--ebc-red);
   text-transform: uppercase;

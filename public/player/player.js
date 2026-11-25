@@ -27,7 +27,18 @@
     index: 0,
     timer: null,
     currentEl: null,
+    // Página actual dentro del cartel de categoría que se está mostrando
+    // (ver renderGrid/ITEMS_PER_GRID_PAGE) y cuántas páginas tiene en total
+    // — se recalculan cada vez que se muestra un cartel nuevo.
+    gridPage: 0,
+    gridTotalPages: 1,
   };
+
+  // Con más de 6 productos en una pantalla, cada foto queda tan chica que
+  // el nombre y el precio dejan de leerse bien — en vez de achicar todo
+  // para que "quepa", se reparten en páginas de a 6 que van rotando solas
+  // dentro del mismo cartel (ver scheduleNextStep).
+  const ITEMS_PER_GRID_PAGE = 6;
 
   function formatPrice(price) {
     return '$' + Number(price || 0).toLocaleString('es-CL');
@@ -55,8 +66,15 @@
 
   function renderGrid(category) {
     const items = state.itemsByCategory[category.id] || [];
-    if (!items.length) return emptyStateHtml(`Pronto nuevas novedades en ${category.name}`);
-    const cards = items
+    if (!items.length) {
+      state.gridTotalPages = 1;
+      return emptyStateHtml(`Pronto nuevas novedades en ${category.name}`);
+    }
+    const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_GRID_PAGE));
+    state.gridTotalPages = totalPages;
+    const pageIndex = ((state.gridPage % totalPages) + totalPages) % totalPages;
+    const pageItems = items.slice(pageIndex * ITEMS_PER_GRID_PAGE, pageIndex * ITEMS_PER_GRID_PAGE + ITEMS_PER_GRID_PAGE);
+    const cards = pageItems
       .map(
         (item) => `
       <div class="item-card">
@@ -93,8 +111,18 @@
 
   function renderDestacado(category) {
     const items = state.itemsByCategory[category.id] || [];
-    if (!items.length) return emptyStateHtml(`Pronto nuevas novedades en ${category.name}`);
-    const item = items[0];
+    if (!items.length) {
+      state.gridTotalPages = 1;
+      return emptyStateHtml(`Pronto nuevas novedades en ${category.name}`);
+    }
+    // Con más de un producto en la categoría, rota uno a la vez (en vez de
+    // mostrar siempre nada más que el primero) repartiendo el mismo tiempo
+    // configurado para el cartel entre todos — mismo mecanismo que las
+    // páginas de "grid" (ver scheduleNextStep/ITEMS_PER_GRID_PAGE).
+    const totalPages = items.length;
+    state.gridTotalPages = totalPages;
+    const pageIndex = ((state.gridPage % totalPages) + totalPages) % totalPages;
+    const item = items[pageIndex];
     return `
       <div class="board board--destacado">
         <img class="hero-photo" src="${escapeHtml(item.photo_path || PLACEHOLDER_PHOTO)}" alt="${escapeHtml(item.name)}" />
@@ -256,6 +284,7 @@
   function showSlide(index, { restartTimer = true } = {}) {
     if (!state.slides.length) return;
     state.index = ((index % state.slides.length) + state.slides.length) % state.slides.length;
+    state.gridPage = 0;
     const slide = state.slides[state.index];
 
     updateHeader(slide);
@@ -286,9 +315,35 @@
 
     if (restartTimer) {
       clearTimeout(state.timer);
-      const durationMs = Math.max(2, slide.duration_seconds == null ? 8 : slide.duration_seconds) * 1000;
-      state.timer = setTimeout(() => showSlide(state.index + 1), durationMs);
+      scheduleNextStep(slide);
     }
+  }
+
+  // Si el cartel que se acaba de mostrar tiene más de una página (más de 6
+  // productos en la categoría, ver ITEMS_PER_GRID_PAGE), reparte el tiempo
+  // configurado del cartel entre sus páginas y las va rotando solo —
+  // recién al terminar la última pasa al siguiente cartel de la playlist.
+  // Con una sola página (el caso normal) se comporta exactamente igual que
+  // antes: un solo setTimeout al siguiente slide.
+  function scheduleNextStep(slide) {
+    const totalDurationMs = Math.max(2, slide.duration_seconds == null ? 8 : slide.duration_seconds) * 1000;
+    const totalPages = state.gridTotalPages || 1;
+    if (totalPages <= 1) {
+      state.timer = setTimeout(() => showSlide(state.index + 1), totalDurationMs);
+      return;
+    }
+    // Mínimo 4s por página para que alcance a leerse aunque el cartel en sí
+    // esté configurado con pocos segundos.
+    const perPageMs = Math.max(4000, totalDurationMs / totalPages);
+    state.timer = setTimeout(() => {
+      if (state.gridPage + 1 < totalPages) {
+        state.gridPage += 1;
+        rerenderCurrentSlide();
+        scheduleNextStep(slide);
+      } else {
+        showSlide(state.index + 1);
+      }
+    }, perPageMs);
   }
 
   function rerenderCurrentSlide() {

@@ -9,6 +9,12 @@
         "start"
       ],
       "port": 3000
+    },
+    {
+      "name": "player",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/index.js"],
+      "port": 4010
     }
   ]
 }
