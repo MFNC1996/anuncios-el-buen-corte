@@ -117,13 +117,10 @@
   padding: 0.8vh 1.5vw;
 }
 .item-card {
-  background: var(--ebc-surface);
-  border: 0.12vh solid var(--ebc-border);
+  position: relative;
   border-radius: 1vh;
   box-shadow: 0 0.15vh 0.3vh rgba(0, 0, 0, 0.07), 0 0.6vh 1.6vh rgba(0, 0, 0, 0.06);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
   height: 100%;
   /* Sin esto, el tamaño mínimo "auto" que un grid item tiene por defecto
      (basado en el contenido: la foto + el texto) podía ser mayor a la
@@ -135,22 +132,31 @@
   min-height: 0;
 }
 .item-card .item-photo {
+  /* La foto ahora cubre TODA la tarjeta (antes vivía arriba, con el precio
+     en una caja separada abajo) — el precio/nombre quedan flotando encima
+     en una etiqueta blanca (ver .item-body), como en el cartel
+     "Destacado" pero en miniatura: así la foto se ve grande y el texto
+     mantiene buen contraste sin importar qué tan clara u oscura sea. */
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  /* Antes era una altura fija (17vh): con filas que ahora se estiran
-     (grid-auto-rows: 1fr) eso dejaba un hueco fijo entre la foto y el borde
-     de abajo de la tarjeta. "flex: 1" hace que la foto ocupe todo el alto
-     que le sobra a la tarjeta después del texto. */
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   object-fit: cover;
   background: var(--ebc-paper);
 }
 .item-card .item-body {
-  padding: 1.4vh 1.8vw;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 1vh 1.6vw;
   display: flex;
   flex-direction: column;
-  gap: 0.6vh;
-  flex: 0 0 auto;
+  gap: 0.3vh;
 }
 .item-card .item-name {
   font-weight: 600;
@@ -410,19 +416,21 @@
   text-align: center;
 }
 .qr-image {
-  width: 32vh;
-  height: 32vh;
+  width: 50vh;
+  height: 50vh;
   background: var(--ebc-surface);
   border: 0.12vh solid var(--ebc-border);
   border-radius: var(--ebc-radius-lg);
   box-shadow: var(--ebc-shadow-lg);
-  padding: 1.5vh;
+  padding: 2vh;
 }
 .qr-caption {
   margin: 0;
-  font-size: 2.3vh;
-  color: var(--ebc-ink-soft);
-  max-width: 60vw;
+  font-size: 3.2vh;
+  font-weight: 600;
+  color: var(--ebc-ink);
+  max-width: 70vw;
+  line-height: 1.3;
 }
 
 /* ---------- Portada: igual a la pantalla de espera del POS (.marca-local) ---------- */
