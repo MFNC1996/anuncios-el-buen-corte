@@ -126,6 +126,16 @@ body {
 
 main {
   padding: 1.5rem;
+  /* Hay dos widgets flotantes "position: fixed" pegados a las esquinas de
+     abajo (vista previa a la derecha, QR a la izquierda — ver
+     .preview-widget/.qr-widget) que se quedan SIEMPRE en esa posición de
+     la pantalla, sin moverse con el scroll del documento. Sin este margen
+     extra, cualquier botón que cayera justo ahí (como "+ Agregar
+     categoría" al final de una lista larga, o el formulario de "Datos del
+     local") quedaba tapado por el widget sin forma de alcanzarlo ni
+     haciendo scroll — el widget no se mueve, así que "más abajo" no existe
+     a menos que el documento en sí sea más alto que esa zona. */
+  padding-bottom: 20rem;
   max-width: 1100px;
   margin: 0 auto;
 }
