@@ -1,0 +1,6 @@
+# Certificados de firma: binarios, nunca tocar saltos de línea (un .p12
+# "normalizado" por error deja de ser el mismo archivo / certificado).
+*.p12 binary
+*.crt binary
+*.pri binary
+*.csr binary

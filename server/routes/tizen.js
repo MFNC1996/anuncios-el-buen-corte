@@ -215,6 +215,15 @@ async function deploy(tvIp, serverIp, screenId, cancelToken) {
     );
   }
 
+  // No basta con confiar en que "Instalar herramientas de Tizen" ya se
+  // apretó antes y dejó el perfil "ebcorte" bien — un PC que actualizó el
+  // programa pero no volvió a apretar ese botón seguía teniendo registrado
+  // el certificado de una versión vieja (o ninguno), y "tizen package -s
+  // ebcorte" firmaba igual, sin avisar, con lo que hubiera. Asegurarlo acá
+  // también, en cada deploy, es barato (son ~2s si ya está bien) y evita
+  // depender de que alguien se acuerde del orden de los botones.
+  await ensureCertificateAndProfile(defaultTizenHome(), env, cancelToken);
+
   fs.rmSync(BUILD_DIR, { recursive: true, force: true });
   fs.mkdirSync(SRC_DIR, { recursive: true });
   fs.copyFileSync(path.join(TIZEN_APP_DIR, 'config.xml'), path.join(SRC_DIR, 'config.xml'));
@@ -509,9 +518,17 @@ async function installSdk(cancelToken) {
 // no hay que repetir a mano el proceso de Certificate Manager + login de
 // Samsung en cada PC donde se instale el programa.
 //
-// Falla con "ya existe" si se corre una segunda vez sobre una instalación
-// que ya lo tenía — eso no es un error real, así que no debe tumbar la
-// instalación entera.
+// Se borra el perfil "ebcorte" si ya existía ANTES de volver a crearlo — no
+// alcanza con tragarse el "already exist" y seguir como si nada: un PC que ya
+// hubiera usado una versión vieja de este programa (antes de que esta
+// función existiera) podía tener un perfil "ebcorte" registrado con el
+// certificado GENÉRICO de antes, con un AUTOR distinto al de Samsung — y
+// Tizen rechaza instalar/actualizar una app si el certificado de autor
+// cambia entre versiones ("Author certificate not match"), aunque el
+// nombre del perfil sea el mismo. Confirmado en vivo: pasó exactamente
+// esto en el PC real del local. Sin este borrado previo, "ya existe" se
+// interpretaba como "ya está bien configurado" cuando en realidad podía
+// seguir apuntando al certificado viejo.
 async function ensureCertificateAndProfile(home, env, cancelToken) {
   const authorP12 = path.join(SAMSUNG_CERT_DIR, 'author.p12');
   const distributorP12 = path.join(SAMSUNG_CERT_DIR, 'distributor.p12');
@@ -521,6 +538,11 @@ async function ensureCertificateAndProfile(home, env, cancelToken) {
     );
   }
   const password = readSamsungCertPassword();
+  await runStep('tizen', ['security-profiles', 'remove', '-n', 'ebcorte'], env, {
+    ignoreError: true,
+    logEvent: 'tizensdk:log',
+    cancelToken,
+  });
   try {
     await runStep(
       'tizen',
