@@ -9,6 +9,11 @@ server/uploads/*
 tizen-app/.build/
 tizen-app/.manifest.tmp
 tizen-app/*signature*.xml
+# La contraseña de los .p12 de firma de Samsung (ver samsung-cert/README.md)
+# vive solo en el filesystem, nunca en git — build-installer.sh igual la
+# incluye en el paquete final porque copia el directorio de trabajo
+# completo con rsync, no un "git archive".
+tizen-app/samsung-cert/password.txt
 *.wgt
 windows-installer/stage/
 windows-installer/dist/

@@ -21,10 +21,10 @@
   color: var(--ebc-surface);
   display: flex;
   align-items: center;
-  gap: 1.4vw;
-  padding: 2.2vh 4vw;
+  gap: 2.8vw;
+  padding: 3vh 4vw;
   flex: 0 0 auto;
-  border-bottom: 0.5vh solid var(--ebc-green);
+  border-bottom: 1vh solid var(--ebc-green);
 }
 
 /* El "display: flex" de arriba tiene más peso que la regla por defecto del
@@ -36,8 +36,8 @@
 }
 
 .board-header .logo-mini {
-  height: 7.5vh;
-  width: 7.5vh;
+  height: 10vh;
+  width: 10vh;
   border-radius: 50%;
   background: var(--ebc-surface);
   box-shadow: 0 0.3vh 1vh rgba(0, 0, 0, 0.25);
@@ -69,9 +69,15 @@
 }
 
 .board-header h2 {
-  font-size: 4.2vh;
+  /* Ocupa el espacio que le sobra a la franja después del logo y centra el
+     texto ahí (en vez de quedar pegado al lado del logo) — con más
+     letter-spacing se lee cómodo sin importar qué tan largo sea el nombre
+     de la categoría que se escriba. */
+  flex: 1;
+  text-align: center;
+  font-size: 5.5vh;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   margin: 0;
 }
 
@@ -91,9 +97,16 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2.2vh 2vw;
-  padding: 3vh 4vw;
-  align-content: start;
+  /* La altura de cada fila ("grid-template-rows") la fija player.js en
+     píxeles exactos, midiendo el alto real disponible (ver fitGridRows) —
+     "1fr"/"auto-rows" sonaba bien en teoría pero en el navegador viejo de
+     algunas TVs Samsung el cálculo con contenido flexible anidado se pasaba
+     un poco del alto real, cortando la fila de abajo justo en el borde de
+     la pantalla. Midiendo con JS no hay margen de error posible.
+     grid-auto-rows por si fitGridRows no llega a correr por algún motivo. */
+  grid-auto-rows: 1fr;
+  gap: 1.2vh 1.5vw;
+  padding: 1.5vh 3vw;
 }
 .item-card {
   background: var(--ebc-surface);
@@ -103,22 +116,29 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 .item-card .item-photo {
   width: 100%;
-  height: 17vh;
+  /* Antes era una altura fija (17vh): con filas que ahora se estiran
+     (grid-auto-rows: 1fr) eso dejaba un hueco fijo entre la foto y el borde
+     de abajo de la tarjeta. "flex: 1" hace que la foto ocupe todo el alto
+     que le sobra a la tarjeta después del texto. */
+  flex: 1;
+  min-height: 0;
   object-fit: cover;
   background: var(--ebc-paper);
 }
 .item-card .item-body {
-  padding: 1.5vh 1.6vw;
+  padding: 1vh 1.6vw;
   display: flex;
   flex-direction: column;
-  gap: 0.6vh;
+  gap: 0.4vh;
+  flex: 0 0 auto;
 }
 .item-card .item-name {
   font-weight: 600;
-  font-size: 2.5vh;
+  font-size: 2.2vh;
   line-height: 1.2;
   color: var(--ebc-ink);
 }
@@ -129,7 +149,7 @@
 }
 .item-card .item-price {
   font-variant-numeric: tabular-nums;
-  font-size: 3.1vh;
+  font-size: 2.7vh;
   font-weight: 800;
   color: var(--ebc-red-vivid);
 }
@@ -193,7 +213,13 @@
 }
 .board--destacado .hero-overlay {
   position: absolute;
-  inset: 0;
+  /* "inset" (shorthand) no lo soporta el navegador viejo de algunas TVs
+     Samsung — con las 4 propiedades explícitas funciona igual mucho más
+     atrás en el tiempo. */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: linear-gradient(to top, rgba(27, 27, 31, 0.88), rgba(27, 27, 31, 0.1) 48%, rgba(27, 27, 31, 0.3));
   display: flex;
   flex-direction: column;
@@ -202,31 +228,31 @@
   color: var(--ebc-surface);
 }
 .board--destacado .hero-eyebrow {
-  font-size: 2vh;
+  font-size: 2.6vh;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.75);
-  margin-bottom: 1.2vh;
+  margin-bottom: 1.5vh;
   font-weight: 600;
 }
 .board--destacado .hero-name {
-  font-size: 5.6vh;
+  font-size: 7vh;
   font-weight: 700;
-  margin: 0 0 1.6vh;
+  margin: 0 0 2vh;
 }
 .board--destacado .hero-price-row {
   display: flex;
   align-items: baseline;
-  gap: 1vw;
+  gap: 1.2vw;
 }
 .board--destacado .hero-price {
   font-variant-numeric: tabular-nums;
-  font-size: 7.5vh;
+  font-size: 9.5vh;
   font-weight: 800;
   color: var(--ebc-gold);
 }
 .board--destacado .hero-unit {
-  font-size: 2.2vh;
+  font-size: 2.8vh;
   color: rgba(255, 255, 255, 0.8);
 }
 .badge-oferta {
@@ -235,9 +261,9 @@
   left: 4vw;
   background: var(--ebc-gold);
   color: #4a3800;
-  padding: 0.9vh 2.2vw;
+  padding: 1.3vh 2.8vw;
   border-radius: 999px;
-  font-size: 2vh;
+  font-size: 2.8vh;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -276,34 +302,34 @@
   gap: 4vh;
 }
 .board--redes .redes-logo {
-  width: 18vh;
-  height: 18vh;
+  width: 28vh;
+  height: 28vh;
   object-fit: contain;
 }
 .social-list {
   display: flex;
   flex-direction: column;
-  gap: 2vh;
+  gap: 2.8vh;
 }
 .social-row {
   display: flex;
   align-items: center;
-  gap: 1.4vw;
+  gap: 1.8vw;
   background: var(--ebc-surface);
   border: 0.12vh solid var(--ebc-border);
   border-radius: 999px;
-  padding: 1.2vh 2.4vw 1.2vh 1.2vh;
+  padding: 1.8vh 3.4vw 1.8vh 1.8vh;
   box-shadow: var(--ebc-shadow);
 }
 .social-badge {
-  width: 5.5vh;
-  height: 5.5vh;
+  width: 8vh;
+  height: 8vh;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 2vh;
+  font-size: 2.8vh;
   color: var(--ebc-surface);
   flex: 0 0 auto;
 }
@@ -314,7 +340,7 @@
   background: #24507a;
 }
 .social-label {
-  font-size: 2.6vh;
+  font-size: 3.6vh;
   font-weight: 700;
   color: var(--ebc-ink);
 }
@@ -396,22 +422,22 @@
   text-align: center;
 }
 .portada-logo {
-  width: 26vh;
-  height: 26vh;
+  width: 36vh;
+  height: 36vh;
   object-fit: contain;
-  margin-bottom: 2.5vh;
+  margin-bottom: 3vh;
   animation: ebc-logo-spin 3s linear infinite;
 }
 .portada-title {
   margin: 0;
-  font-size: 5.2vh;
+  font-size: 7vh;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--ebc-red);
 }
 .portada-sub {
   margin: 1vh 0 0;
-  font-size: 2.2vh;
+  font-size: 2.8vh;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ebc-ink-soft);
@@ -431,9 +457,9 @@
   text-align: center;
 }
 .macoem-hex-wrap {
-  width: 26vh;
-  height: 26vh;
-  margin-bottom: 2.5vh;
+  width: 36vh;
+  height: 36vh;
+  margin-bottom: 3vh;
   animation: ebc-macoem-pulse 2.4s ease-in-out infinite;
 }
 .macoem-logo-img {
@@ -448,7 +474,7 @@
 }
 .macoem-wordmark {
   margin: 0;
-  font-size: 5.6vh;
+  font-size: 7.2vh;
   font-weight: 800;
   letter-spacing: 0.1em;
   background: linear-gradient(120deg, #ec1561, #e8112d);
@@ -457,8 +483,8 @@
   color: transparent;
 }
 .macoem-tagline {
-  margin: 1.1vh 0 0;
-  font-size: 2.4vh;
+  margin: 1.4vh 0 0;
+  font-size: 3vh;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ebc-ink-soft);
@@ -466,8 +492,8 @@
   animation: ebc-macoem-tagline-in 0.9s ease-out 0.4s forwards;
 }
 .macoem-contact {
-  margin: 0.8vh 0 0;
-  font-size: 1.8vh;
+  margin: 1vh 0 0;
+  font-size: 2.2vh;
   font-weight: 600;
   letter-spacing: 0.03em;
   color: #e8112d;

@@ -13,6 +13,16 @@ const TIZEN_APP_DIR = path.join(INSTALL_ROOT, 'tizen-app');
 const BUILD_DIR = path.join(TIZEN_APP_DIR, '.build');
 const SRC_DIR = path.join(BUILD_DIR, 'src');
 const INSTALLER_EXE = path.join(INSTALL_ROOT, 'tizen-studio-installer.exe');
+const SAMSUNG_CERT_DIR = path.join(TIZEN_APP_DIR, 'samsung-cert');
+
+// La contraseña de los dos .p12 de abajo vive en un archivo aparte (no en el
+// código fuente) a propósito — no es una contraseña de cuenta Samsung, solo
+// protege estos dos archivos de firma (ver tizen-app/samsung-cert/README.md
+// para el detalle completo), pero igual no hace falta que quede en texto
+// plano dentro de un archivo versionado en git.
+function readSamsungCertPassword() {
+  return fs.readFileSync(path.join(SAMSUNG_CERT_DIR, 'password.txt'), 'utf8').trim();
+}
 
 // Acá es donde nuestro propio instalador (el botón "Instalar herramientas
 // de Tizen") siempre instala/repara el SDK — no cambia nunca, para que ese
@@ -248,28 +258,59 @@ async function deploy(tvIp, serverIp, screenId, cancelToken) {
   logLine('tizen:log', "==> Listo. Busca 'Cartelera El Buen Corte' en el menú Apps de la TV y ábrela.");
 }
 
-// "tizen install -t <ip>:26101" a veces falla con "There is no <ip>:26101
-// target" aunque "sdb devices" lo haya mostrado conectado segundos antes
-// (pasó en una TV real: entre conectar y terminar de empaquetar el .wgt, la
-// TV soltó la conexión de depuración). Es un problema conocido de Tizen
-// Studio, no de esta app — la solución que funciona es reconectar y
-// reintentar una vez, no cambiar nada de cómo se arma el paquete.
+// El id de la app vive en config.xml (atributo "id" de <tizen:application>) —
+// se lee de ahí en vez de duplicarlo hardcodeado acá, para que no se
+// desincronicen si algún día cambia uno de los dos lugares.
+function readAppId() {
+  const configXml = fs.readFileSync(path.join(TIZEN_APP_DIR, 'config.xml'), 'utf8');
+  const match = configXml.match(/<tizen:application[^>]*\bid="([^"]+)"/);
+  if (!match) throw new Error('No se pudo leer el id de la app desde tizen-app/config.xml');
+  return match[1];
+}
+
+// "tizen install" reporta "Failed to install Tizen application" al instalar
+// en una TV Samsung real, sin ningún detalle — confirmado en vivo que pasa
+// incluso con un certificado de Samsung válido (ligado al DUID correcto),
+// espacio de sobra, firmware al día y hasta con un paquete mínimo de
+// prueba: es un bug/incompatibilidad del propio instalador de Tizen Studio
+// con el firmware real de esta TV, no algo que dependa de cómo arma el
+// paquete esta app (ni del flag -s/-t, que ya estaba bien). El comando
+// interno real del firmware que SÍ instala — confirmado en vivo, con "sdb
+// shell 0 vd_applist" mostrando la app recién instalada después — es
+// "vd_appinstall", al que se llega directo por "sdb shell" después de subir
+// el .wgt ya firmado con "sdb push", sin pasar por "tizen install" en
+// absoluto.
 async function installWgt(wgtPath, deviceId, tvIp, env, cancelToken) {
-  try {
-    await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
-    return;
-  } catch (err) {
-    if (!/there is no .*target/i.test(err.output || err.message || '')) throw err;
+  const appId = readAppId();
+  const remotePath = '/home/owner/share/tmp/sdk_tools/signed.wgt';
+
+  async function pushAndInstall() {
+    await runStep('sdb', ['-s', deviceId, 'push', wgtPath, remotePath], env, { cancelToken });
+    const { output } = await runStep(
+      'sdb',
+      ['-s', deviceId, 'shell', '0', 'vd_appinstall', appId, remotePath],
+      env,
+      { cancelToken }
+    );
+    if (!/install completed/i.test(output)) {
+      const err = new Error('la TV no confirmó "install completed"');
+      err.output = output;
+      throw err;
+    }
   }
 
-  // Un simple "sdb connect" de nuevo no sirve acá: en la práctica la TV
-  // seguía conectada todo el rato (confirmado — "already connected" antes
-  // Y después) y "tizen install" igual decía que no existía el target. Eso
-  // apunta a que el SERVIDOR de sdb (el proceso de fondo que sdb y tizen
-  // consultan) quedó en un estado raro, no a que la conexión se cayera.
-  // "kill-server" lo apaga para que el siguiente comando lo levante limpio
-  // — mismo remedio que "adb kill-server" para el mismo síntoma en Android.
-  logLine('tizen:log', '==> "tizen install" no reconoce la TV aunque sigue conectada — reiniciando el servidor de sdb...');
+  try {
+    await pushAndInstall();
+    return;
+  } catch (err) {
+    logLine('tizen:log', `==> Falló el primer intento de instalar (${err.message}) — reiniciando el servidor de sdb y reintentando...`);
+  }
+
+  // Un simple "sdb connect" de nuevo no sirve acá si el SERVIDOR de sdb (el
+  // proceso de fondo que sdb consulta) quedó en un estado raro, aunque la TV
+  // siga "already connected". "kill-server" lo apaga para que el siguiente
+  // comando lo levante limpio — mismo remedio que "adb kill-server" para el
+  // mismo síntoma en Android.
   await runStep('sdb', ['kill-server'], env, { ignoreError: true, cancelToken });
   await sleep(1500);
   await runStep('sdb', ['connect', tvIp], env, { ignoreError: true, cancelToken });
@@ -280,19 +321,11 @@ async function installWgt(wgtPath, deviceId, tvIp, env, cancelToken) {
   logLine('tizen:log', `==> Estado de sdb después de reiniciar el servidor:\n${devicesOutput.trim() || '(sin salida)'}`);
 
   try {
-    await runStep('tizen', ['install', '-n', wgtPath, '-t', deviceId], env, { cancelToken });
+    await pushAndInstall();
   } catch (err) {
-    // Si el segundo intento falló por un motivo DISTINTO (ej. el deploy se
-    // canceló por el timeout general mientras este reintento estaba en
-    // curso, o un error real de tizen como un certificado vencido), hay
-    // que mostrar ESE error — culpar siempre a la TV/PC con un mensaje fijo
-    // tapaba la causa real y mandaba a reiniciar hardware que nunca fue el
-    // problema.
-    if (!/there is no .*target/i.test(err.output || err.message || '')) throw err;
     throw new Error(
-      '"tizen install" sigue sin reconocer la TV aunque sdb la ve conectada (revisa el registro de arriba). ' +
-        'No es un problema de red — probablemente haga falta reiniciar la TV y el PC, o instalar esta versión ' +
-        'directamente desde Tizen Studio (IDE) en vez del botón del panel.'
+      `La TV no confirmó la instalación tras reintentar (revisa el registro de arriba: ${err.message}). ` +
+        'Puede que haga falta reiniciar la TV.'
     );
   }
 }
@@ -464,49 +497,56 @@ async function installSdk(cancelToken) {
   logLine('tizensdk:log', '==> Listo. Ya puedes usar "Instalar en la TV" de abajo.');
 }
 
-// El certificado y el perfil de seguridad fallan con "ya existe" si se
-// corren una segunda vez sobre una instalación que ya los tenía — eso no es
-// un error real (es justo lo que se espera si el SDK ya estaba configurado
-// de antes), así que no debe tumbar la instalación entera.
+// Las Smart TV Samsung reales (a diferencia del emulador) exigen que la app
+// esté firmada con un certificado DE SAMSUNG que incluya el DUID (ID único)
+// de la TV destino — un certificado genérico creado acá mismo con
+// "tizen certificate" (lo que hacía esta función antes) nunca instala en
+// hardware real, por más que el empaquetado y el resto del flujo terminen
+// sin error. En vez de generar uno nuevo (imposible de automatizar del
+// todo: Samsung exige iniciar sesión con una cuenta real), se registra el
+// certificado de Samsung ya generado una vez para la TV del local (ver
+// tizen-app/samsung-cert/README.md) como el perfil de firma "ebcorte" — así
+// no hay que repetir a mano el proceso de Certificate Manager + login de
+// Samsung en cada PC donde se instale el programa.
 //
-// Antes había un tercer paso acá, "tizen cli-config profiles.path=...", para
-// apuntar el perfil "global" de Tizen Studio a este mismo profiles.xml. Se
-// quitó: en Windows ese comando SIEMPRE fallaba (tizen.bat lo rechaza con
-// "configuration must be specified in the form:<key>=<value>" por más que se
-// probara encomillarlo de varias formas — un problema conocido de Tizen
-// Studio en Windows, no de cómo arma el comando esta app), y además era
-// puro adorno: "security-profiles add" ya deja el perfil "ebcorte" en la
-// ubicación por defecto que Tizen usa de todas formas, y nuestro propio
-// empaquetado (deploy() más abajo) siempre pasa "-s ebcorte" explícito al
-// firmar, así que nunca dependió de ese default global. Confirmado con un
-// empaquetado real de prueba en Windows sin este paso.
+// Falla con "ya existe" si se corre una segunda vez sobre una instalación
+// que ya lo tenía — eso no es un error real, así que no debe tumbar la
+// instalación entera.
 async function ensureCertificateAndProfile(home, env, cancelToken) {
-  const steps = [
-    ['certificado', ['certificate', '-a', 'El Buen Corte', '-p', '0000', '-f', 'ebcorte', '-c', 'CL']],
-    [
-      'perfil de seguridad',
+  const authorP12 = path.join(SAMSUNG_CERT_DIR, 'author.p12');
+  const distributorP12 = path.join(SAMSUNG_CERT_DIR, 'distributor.p12');
+  if (!fs.existsSync(authorP12) || !fs.existsSync(distributorP12)) {
+    throw new Error(
+      'No se encontró el certificado de Samsung junto al programa (tizen-app/samsung-cert). Reinstala con la versión más reciente.'
+    );
+  }
+  const password = readSamsungCertPassword();
+  try {
+    await runStep(
+      'tizen',
       [
         'security-profiles',
         'add',
         '-n',
         'ebcorte',
         '-a',
-        path.join(`${home}-data`, 'keystore', 'author', 'ebcorte.p12'),
+        authorP12,
         '-p',
-        '0000',
+        password,
+        '-d',
+        distributorP12,
+        '-dp',
+        password,
       ],
-    ],
-  ];
-  for (const [name, args] of steps) {
-    try {
-      await runStep('tizen', args, env, { logEvent: 'tizensdk:log', cancelToken });
-    } catch (err) {
-      if (/already exist/i.test(err.output || '')) {
-        logLine('tizensdk:log', `==> (${name}: ya estaba configurado de antes, se deja igual)`);
-        continue;
-      }
-      throw err;
+      env,
+      { logEvent: 'tizensdk:log', cancelToken }
+    );
+  } catch (err) {
+    if (/already exist/i.test(err.output || '')) {
+      logLine('tizensdk:log', '==> (perfil de firma: ya estaba configurado de antes, se deja igual)');
+      return;
     }
+    throw err;
   }
 }
 

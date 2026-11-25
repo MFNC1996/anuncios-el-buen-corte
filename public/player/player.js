@@ -15,7 +15,7 @@
     category_id: null,
     template_key: 'macoem',
     animation_key: 'fade',
-    duration_seconds: 6,
+    duration_seconds: 9,
   };
 
   const state = {
@@ -140,7 +140,7 @@
   }
 
   function renderHorario() {
-    const hours = state.settings?.hours || [];
+    const hours = (state.settings && state.settings.hours) || [];
     if (!hours.length) return emptyStateHtml('Configura tu horario desde el panel');
     const rows = hours
       .map(
@@ -230,6 +230,29 @@
     }
   }
 
+  // El navegador viejo de algunas TVs Samsung calcula mal "grid-auto-rows:
+  // 1fr" cuando el contenido de cada celda (foto con flex:1 + texto) es
+  // flexible: el total se pasaba por un poco del alto real disponible y la
+  // última fila quedaba cortada justo en el borde de la pantalla, sin forma
+  // de verlo venir solo mirando el CSS. Midiendo acá con JS y fijando
+  // "grid-template-rows" en píxeles exactos no hay margen de error posible
+  // — se reparte EXACTAMENTE el alto medido, nunca más ni menos.
+  function fitGridRows(container) {
+    const grid = container.querySelector('.items-grid');
+    if (!grid) return;
+    const cardCount = grid.querySelectorAll('.item-card').length;
+    if (!cardCount) return;
+    const cols = 3;
+    const rows = Math.ceil(cardCount / cols);
+    const cs = getComputedStyle(grid);
+    const paddingTop = parseFloat(cs.paddingTop) || 0;
+    const paddingBottom = parseFloat(cs.paddingBottom) || 0;
+    const rowGap = parseFloat(cs.rowGap) || 0;
+    const contentHeight = grid.clientHeight - paddingTop - paddingBottom;
+    const rowHeight = Math.max(10, (contentHeight - rowGap * (rows - 1)) / rows);
+    grid.style.gridTemplateRows = `repeat(${rows}, ${rowHeight}px)`;
+  }
+
   function showSlide(index, { restartTimer = true } = {}) {
     if (!state.slides.length) return;
     state.index = ((index % state.slides.length) + state.slides.length) % state.slides.length;
@@ -244,9 +267,13 @@
     slideArea.appendChild(el);
 
     const previousEl = state.currentEl;
-    // Forzar reflow para que la transición de entrada se dispare.
+    // Forzar reflow ANTES de medir el grid (fitGridRows) — sin esto, en el
+    // navegador viejo de algunas TVs Samsung "clientHeight" podía devolver
+    // un valor de antes de insertar este slide (o 0), midiendo mal el alto
+    // real disponible y dejando el problema sin arreglar en la práctica.
     // eslint-disable-next-line no-unused-expressions
     el.offsetHeight;
+    fitGridRows(el);
     el.classList.add('is-active');
 
     if (previousEl) {
@@ -259,7 +286,7 @@
 
     if (restartTimer) {
       clearTimeout(state.timer);
-      const durationMs = Math.max(2, slide.duration_seconds ?? 8) * 1000;
+      const durationMs = Math.max(2, slide.duration_seconds == null ? 8 : slide.duration_seconds) * 1000;
       state.timer = setTimeout(() => showSlide(state.index + 1), durationMs);
     }
   }
@@ -269,12 +296,13 @@
     const slide = state.slides[state.index];
     updateHeader(slide);
     state.currentEl.innerHTML = renderSlideHtml(slide);
+    fitGridRows(state.currentEl);
   }
 
   function applyBackground(settings) {
     if (settings.background_image_path) {
       stage.style.setProperty('--ebc-bg-image', `url('${settings.background_image_path}')`);
-      const opacityPercent = settings.background_overlay_opacity ?? 80;
+      const opacityPercent = settings.background_overlay_opacity == null ? 80 : settings.background_overlay_opacity;
       stage.style.setProperty('--ebc-bg-overlay-alpha', String(opacityPercent / 100));
     } else {
       stage.style.removeProperty('--ebc-bg-image');
@@ -315,10 +343,10 @@
     }
 
     const screens = profile.screens || [];
-    const rows = Math.max(1, ...screens.map((s) => (s.position_row ?? 0) + 1));
-    const cols = Math.max(1, ...screens.map((s) => (s.position_col ?? 0) + 1));
-    const row = screen.position_row ?? 0;
-    const col = screen.position_col ?? 0;
+    const rows = Math.max(1, ...screens.map((s) => (s.position_row == null ? 0 : s.position_row) + 1));
+    const cols = Math.max(1, ...screens.map((s) => (s.position_col == null ? 0 : s.position_col) + 1));
+    const row = screen.position_row == null ? 0 : screen.position_row;
+    const col = screen.position_col == null ? 0 : screen.position_col;
 
     slideArea.innerHTML = '<div class="board board--mosaic-tile"></div>';
     const tile = slideArea.querySelector('.board--mosaic-tile');
@@ -332,7 +360,7 @@
     if (!screen) return;
     state.screen = screen;
 
-    if (screen.profile?.mode === 'mosaic') {
+    if (screen.profile && screen.profile.mode === 'mosaic') {
       await renderMosaic(screen);
       return;
     }
@@ -363,7 +391,7 @@
       if (msg.event === 'content:changed') {
         await loadContent();
         rerenderCurrentSlide();
-      } else if (msg.event === 'playlist:changed' && msg.payload?.playlist_id === state.playlistId) {
+      } else if (msg.event === 'playlist:changed' && msg.payload && msg.payload.playlist_id === state.playlistId) {
         await loadContent();
         await loadPlaylist({ keepIndex: false });
       } else if (msg.event === 'profiles:changed') {

@@ -64,7 +64,11 @@ tizen package -t wgt -s ebcorte -o "$BUILD_DIR" -- "$SRC_DIR"
 
 WGT_FILE=$(find "$BUILD_DIR" -maxdepth 1 -name "*.wgt" | head -n1)
 echo "==> Instalando $WGT_FILE en la TV..."
-tizen install -n "$WGT_FILE" -t "$DEVICE_ID"
+# "-s/--serial" selecciona el dispositivo por su serial (igual que lo lista
+# "sdb devices"). "-t/--target" es para otra cosa (perfil de build del SDK) y
+# con él "tizen install" siempre falla con "There is no X target" aunque la
+# TV esté conectada — confirmado en vivo contra una TV real.
+tizen install -n "$WGT_FILE" -s "$DEVICE_ID"
 
 echo "==> Listo. Busca 'Cartelera El Buen Corte' en el menú Apps de la TV y ábrela"
 echo "    (o ejecútala ahora con: tizen run -p ebcorteTV1.CarteleraEBC -t $DEVICE_ID)"

@@ -31,7 +31,13 @@
 
 .slide {
   position: absolute;
-  inset: 0;
+  /* "inset" (shorthand) no lo soporta el navegador viejo de algunas TVs
+     Samsung — con las 4 propiedades explícitas funciona igual mucho más
+     atrás en el tiempo. */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

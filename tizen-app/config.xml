@@ -4,13 +4,14 @@
         id="http://elbuencorte.cl/cartelera"
         version="1.0.0"
         viewmodes="maximized">
-  <tizen:application id="ebcorteTV1.CarteleraEBC" package="ebcorteTV1" required_version="4.0"/>
+  <tizen:application id="EbcorteTV1.CarteleraEBC" package="EbcorteTV1" required_version="4.0"/>
   <content src="index.html"/>
   <access origin="*" subdomains="true"/>
   <feature name="http://tizen.org/feature/screen.size.all"/>
   <icon src="icon.png"/>
   <name>Cartelera El Buen Corte</name>
   <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:metadata key="http://samsung.com/tv/metadata/use.remote.inspector" value="true"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
   <tizen:profile name="tv-samsung"/>
 </widget>
